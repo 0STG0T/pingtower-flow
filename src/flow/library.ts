@@ -26,36 +26,6 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
     },
   },
   {
-    templateId: "website-forms",
-    type: "website",
-    category: "Источники",
-    data: {
-      title: "Форма обратной связи",
-      emoji: "📝",
-      description: "Собирает лиды из web-формы",
-      status: "idle",
-      metadata: [
-        { label: "Тип", value: "POST" },
-        { label: "Полей", value: "5" },
-      ],
-    },
-  },
-  {
-    templateId: "llm-routing",
-    type: "llm",
-    category: "Логика",
-    data: {
-      title: "Роутинг обращений",
-      emoji: "🧭",
-      description: "Классифицирует запрос клиента и выбирает сценарий",
-      status: "idle",
-      metadata: [
-        { label: "Модель", value: "GPT-4o" },
-        { label: "Точность", value: "92%" },
-      ],
-    },
-  },
-  {
     templateId: "llm-autoreply",
     type: "llm",
     category: "Логика",
@@ -82,21 +52,6 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
       metadata: [
         { label: "Канал", value: "@pingtower" },
         { label: "Формат", value: "Markdown" },
-      ],
-    },
-  },
-  {
-    templateId: "messenger-email",
-    type: "messenger",
-    category: "Доставка",
-    data: {
-      title: "Email рассылка",
-      emoji: "✉️",
-      description: "Рассылает письма по списку адресов",
-      status: "idle",
-      metadata: [
-        { label: "Писем", value: "1 250" },
-        { label: "Провайдер", value: "SMTP" },
       ],
     },
   },
