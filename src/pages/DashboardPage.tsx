@@ -24,10 +24,12 @@ import { PingChart } from "@/components/dashboard/PingChart";
 import { TimeseriesChart } from "@/components/dashboard/TimeseriesChart";
 import { TrafficLightTimeline } from "@/components/dashboard/TrafficLightTimeline";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
 import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
+
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { RefreshCw } from "lucide-react";
 
@@ -38,6 +40,7 @@ const TIME_RANGES = [
   { value: "1m", label: "1 мин", durationMs: 60_000, groupBy: "1m" },
   { value: "10m", label: "10 мин", durationMs: 600_000, groupBy: "10m" },
   { value: "60m", label: "1 час", durationMs: 3_600_000, groupBy: "60m" },
+
   { value: "1d", label: "1 день", durationMs: 86_400_000, groupBy: "1d" },
   { value: "1w", label: "1 неделя", durationMs: 604_800_000, groupBy: "1w" },
 ] as const;
@@ -63,9 +66,11 @@ const buildTrend = (series: ChartPoint[], limit = 120) => {
 };
 
 
+
 type Site = {
   name: string;
   url: string;
+
 };
 
 const getInitials = (site: Site) => {
@@ -96,6 +101,7 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+
 };
 
 const formatMs = (value: number | null) => (value === null ? "—" : `${Math.round(value)} мс`);
@@ -108,6 +114,7 @@ const formatDays = (value: number | null, digits = 1) =>
 export default function DashboardPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
+
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [overview, setOverview] = useState<AggregatedDashboardResponse | null>(null);
@@ -115,6 +122,7 @@ export default function DashboardPage() {
   const [isOverviewLoading, setIsOverviewLoading] = useState(false);
   const [isSiteLoading, setIsSiteLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
@@ -138,7 +146,9 @@ export default function DashboardPage() {
         if (!isMounted) return;
         setSites(response.data);
         if (response.data.length > 0) {
+
           setSelectedSiteUrl((current) => current || response.data[0].url);
+
         }
       } catch (err) {
         console.error("Failed to load sites", err);
@@ -179,6 +189,7 @@ export default function DashboardPage() {
         if (!signal?.aborted) {
           setIsOverviewLoading(false);
         }
+
       }
     },
     [timeRangeConfig.durationMs, timeRangeConfig.groupBy],
@@ -194,6 +205,7 @@ export default function DashboardPage() {
 
       setIsSiteLoading(true);
       const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
 
       try {
         const [aggregateResponse, logsResponse] = await Promise.all([
@@ -635,13 +647,16 @@ export default function DashboardPage() {
               </div>
               {selectedSite ? (
                 <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium capitalize ${statusBadgeClass}`}>
+
                   <span className="h-2 w-2 rounded-full bg-current" />
                   {activeTrafficLight}
                 </span>
               ) : null}
             </div>
             {error ? (
+
               <div className="rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm">{error}</div>
+
             ) : null}
             <div className="grid gap-4 xl:grid-cols-5">
               <div className="grid gap-4 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
@@ -655,7 +670,9 @@ export default function DashboardPage() {
                   value={formatMs(sitePingAvg)}
                   trend={sitePingTrend}
                 />
+
                 <MetricCard title="Доступность" value={uptime === null ? "—" : `${uptime}%`} />
+
                 <MetricCard
                   title="% успешных DNS"
                   value={formatPercent(siteDnsSuccess)}
@@ -670,7 +687,9 @@ export default function DashboardPage() {
                   accent={sslAccent}
                 />
               </div>
+
               <MetricCard title="Проверок" value={siteChecks} description="Количество записей в выборке" compact />
+
             </div>
             <IncidentBanner incidentCount={incidentsCount} windowSize={filteredLogs.length || siteChecks} />
             <div className="grid gap-4 xl:grid-cols-2">

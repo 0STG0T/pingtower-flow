@@ -1,3 +1,4 @@
+
 import {
   memo,
   useCallback,
@@ -7,6 +8,7 @@ import {
   type ReactNode,
   type UIEvent,
 } from "react";
+
 import type { LogRecord, TrafficLight } from "@/utils/stats";
 
 export type LogsTableFilters = {
@@ -28,9 +30,11 @@ export type LogsTableProps = {
 
 const TRAFFIC_ORDER: TrafficLight[] = ["green", "orange", "red"];
 const TRAFFIC_LABELS: Record<TrafficLight, string> = {
+
   green: "зелёный",
   orange: "оранжевый",
   red: "красный",
+
 };
 
 const TRAFFIC_COLOR: Record<TrafficLight, string> = {
@@ -261,6 +265,7 @@ export const LogsTable = memo(function LogsTable({
             <HeaderCell>DNS</HeaderCell>
             <HeaderCell>Редиректы</HeaderCell>
           </div>
+ 
           {isVirtualized ? (
             <VirtualizedRows logs={logs} onRowClick={onRowClick} />
           ) : (
