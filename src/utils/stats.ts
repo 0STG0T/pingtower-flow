@@ -46,7 +46,6 @@ const asNumber = (value: number | null | undefined) =>
 
 const toFixedNumber = (value: number, digits = 2) => Number(value.toFixed(digits));
 
-
 export function calcAvgLatency(logs: LogRecord[]): number | null {
   const values = logs
     .map((log) => asNumber(log.latency_ms))
@@ -147,7 +146,6 @@ export function getSparklineSeries(
     .filter((value): value is { timestamp: number; value: number } => value !== null);
 }
 
-
 export type ChartPoint<TMeta = unknown> = {
   timestamp: number;
   value: number;
@@ -176,7 +174,6 @@ export function buildTimeseries(
     const referenceLog = bucket[bucket.length - 1];
     points.push({
       timestamp: new Date(referenceLog.timestamp).getTime(),
-
       value: toFixedNumber(avgValue),
       meta: referenceLog,
 

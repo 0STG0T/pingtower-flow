@@ -33,14 +33,14 @@ import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { RefreshCw } from "lucide-react";
 
-
 const API_URL = "http://localhost:8000";
 
 const TIME_RANGES = [
   { value: "1s", label: "1 сек", durationMs: 1_000, groupBy: "1s" },
   { value: "1m", label: "1 мин", durationMs: 60_000, groupBy: "1m" },
   { value: "10m", label: "10 мин", durationMs: 600_000, groupBy: "10m" },
-  { value: "60m", label: "60 мин", durationMs: 3_600_000, groupBy: "60m" },
+  { value: "60m", label: "1 час", durationMs: 3_600_000, groupBy: "60m" },
+
   { value: "1d", label: "1 день", durationMs: 86_400_000, groupBy: "1d" },
   { value: "1w", label: "1 неделя", durationMs: 604_800_000, groupBy: "1w" },
 ] as const;
@@ -140,13 +140,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let isMounted = true;
-
     const loadSites = async () => {
       try {
         const response = await axios.get<Site[]>(`${API_URL}/sites`);
         if (!isMounted) return;
         setSites(response.data);
         if (response.data.length > 0) {
+
+          setSelectedSiteUrl((current) => current || response.data[0].url);
 
         }
       } catch (err) {
@@ -188,6 +189,7 @@ export default function DashboardPage() {
         if (!signal?.aborted) {
           setIsOverviewLoading(false);
         }
+
       }
     },
     [timeRangeConfig.durationMs, timeRangeConfig.groupBy],
@@ -203,6 +205,7 @@ export default function DashboardPage() {
 
       setIsSiteLoading(true);
       const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
 
       try {
         const [aggregateResponse, logsResponse] = await Promise.all([
@@ -338,6 +341,26 @@ export default function DashboardPage() {
     [overviewBuckets],
   );
 
+  const overviewUptime = useMemo(() => {
+    const total = overviewTraffic.green + overviewTraffic.orange + overviewTraffic.red;
+    if (total === 0) return null;
+    return Number(((overviewTraffic.green / total) * 100).toFixed(1));
+  }, [overviewTraffic]);
+
+  const overviewUptimeTrend = useMemo(() => {
+    return overviewBuckets
+      .map((bucket) => {
+        const total =
+          bucket.traffic_light.green + bucket.traffic_light.orange + bucket.traffic_light.red;
+        if (total === 0) return null;
+        return {
+          timestamp: new Date(bucket.timestamp).getTime(),
+          value: Number(((bucket.traffic_light.green / total) * 100).toFixed(1)),
+        };
+      })
+      .filter((value): value is { timestamp: number; value: number } => value !== null);
+  }, [overviewBuckets]);
+
   const overviewLatencyTrend = useMemo(() => buildTrend(overviewLatencySeries), [overviewLatencySeries]);
   const overviewPingTrend = useMemo(() => buildTrend(overviewPingSeries), [overviewPingSeries]);
   const overviewDnsTrend = useMemo(() => buildTrend(overviewDnsSeries), [overviewDnsSeries]);
@@ -403,7 +426,6 @@ export default function DashboardPage() {
   const latestLog = filteredLogs[filteredLogs.length - 1] ?? sortedLogs[sortedLogs.length - 1] ?? null;
   const activeTrafficLight = latestLog?.traffic_light ?? "green";
 
-
   const statusBadgeClass = useMemo(() => {
     switch (activeTrafficLight) {
       case "red":
@@ -440,49 +462,164 @@ export default function DashboardPage() {
   const sslAccent =
     sslDaysLeftMin === null ? "default" : sslDaysLeftMin <= 0 ? "danger" : sslDaysLeftMin < 7 ? "warning" : "default";
 
-
   return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden">
+    <div className="flex h-full flex-1 flex-col overflow-hidden bg-slate-100/60">
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-10 px-6 pb-14 pt-6">
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-12 px-6 pb-16 pt-6">
+          <div className="sticky top-16 z-40 -mx-6">
+            <div className="rounded-3xl border border-slate-200/80 bg-white/95 px-6 py-6 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.45)] backdrop-blur">
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                      <span>Дашборд</span>
+                      <span className="h-1 w-1 rounded-full bg-slate-300" />
+                      <span>Общая статистика</span>
+                    </div>
+                    <h1 className="text-2xl font-semibold text-slate-900">Мониторинг доступности</h1>
+                    <p className="text-sm text-slate-500">Все сайты за выбранный период.</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <span className="h-2 w-2 rounded-full bg-slate-400" />
+                      {`Сайтов: ${overviewSiteCount}`}
+                    </span>
+                    {overviewError ? <span className="text-sm text-rose-600">{overviewError}</span> : null}
+                  </div>
+                </div>
+                <div className="grid gap-4 xl:grid-cols-7">
+                  <div className="grid gap-4 sm:grid-cols-2 xl:col-span-5 xl:grid-cols-5">
+                    <MetricCard
+                      title="Доступность"
+                      value={formatPercent(overviewUptime)}
+                      trend={overviewUptimeTrend}
+                      trendFormatter={(value) => `${value.toFixed(1)}%`}
+                    />
+                    <MetricCard
+                      title="Средняя латентность"
+                      value={formatMs(overviewSummary.latency_avg)}
+                      trend={overviewLatencyTrend}
+                    />
+                    <MetricCard
+                      title="Средний пинг"
+                      value={formatMs(overviewSummary.ping_avg)}
+                      trend={overviewPingTrend}
+                    />
+                    <MetricCard
+                      title="% успешных DNS"
+                      value={formatPercent(overviewSummary.dns_success_rate)}
+                      trend={overviewDnsTrend}
+                      trendFormatter={(value) => `${value.toFixed(1)}%`}
+                    />
+                    <MetricCard
+                      title="Средний срок SSL"
+                      value={formatDays(overviewSummary.ssl_days_left_avg)}
+                      trend={overviewSslTrend}
+                      trendFormatter={(value) => `${value.toFixed(1)} дн.`}
+                    />
+                  </div>
+                  <div className="xl:col-span-2">
+                    <TrafficLightPie data={overviewTraffic} title="Светофор (все сайты)" />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="flex-1 overflow-x-auto">
+                    <div className="flex w-max gap-2">
+                      {sites.length > 0 ? (
+                        sites.map((site) => {
+                          const isActive = site.url === selectedSiteUrl;
+                          return (
+                            <button
+                              key={site.url}
+                              type="button"
+                              aria-pressed={isActive}
+                              onClick={() => setSelectedSiteUrl(site.url)}
+                              className={`group flex min-w-[200px] items-center gap-3 rounded-2xl border px-4 py-3 text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
+                                isActive
+                                  ? "border-slate-900 bg-slate-900 text-white shadow-lg"
+                                  : "border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300 hover:bg-white"
+                              }`}
+                            >
+                              <span
+                                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                                  isActive ? "bg-white/20 text-white" : "bg-slate-900/10 text-slate-700"
+                                }`}
+                              >
+                                {getInitials(site)}
+                              </span>
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold leading-5">{getHostname(site)}</span>
+                                <span className={`text-xs ${isActive ? "text-white/80" : "text-slate-400"}`}>{site.url}</span>
+                              </div>
+                            </button>
+                          );
+                        })
+                      ) : (
+                        <span className="text-sm text-slate-400">Нет доступных сайтов</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-3 text-sm text-slate-600">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
+                        {TIME_RANGES.map((option) => {
+                          const isActive = option.value === timeRange;
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => setTimeRange(option.value)}
+                              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                                isActive ? "bg-white text-slate-900 shadow" : "text-slate-500 hover:text-slate-700"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-slate-900"
+                          checked={autoRefreshEnabled}
+                          onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
+                        />
+                        Авто
+                      </label>
+                      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm">
+                        <span>интервал</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={60}
+                          step={1}
+                          value={autoRefreshInterval}
+                          onChange={(event) => setAutoRefreshInterval(clamp(Number(event.target.value) || 1, 1, 60))}
+                          className="h-7 w-16 rounded-full border border-slate-200 bg-white px-2 text-right text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                          aria-label="Интервал автообновления, секунд"
+                        />
+                        <span>сек</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleManualRefresh}
+                        className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${isSiteLoading || isOverviewLoading ? "animate-spin" : ""}`} />
+                        Обновить
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-slate-400">
+                      {lastUpdated ? <span>Обновлено {lastUpdated.toLocaleTimeString()}</span> : null}
+                      {isSiteLoading || isOverviewLoading ? <span>Обновляем данные…</span> : null}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <section className="space-y-6">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-semibold text-slate-900">Общая статистика</h1>
-                <p className="text-sm text-slate-500">Все сайты за выбранный период.</p>
-              </div>
-              {overviewError ? <span className="text-sm text-rose-600">{overviewError}</span> : null}
-            </div>
-            <div className="grid gap-4 xl:grid-cols-6">
-              <div className="grid gap-4 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
-                <MetricCard title="Сайтов" value={overviewSiteCount} description="Активные ресурсы" compact />
-                <MetricCard
-                  title="Средняя латентность"
-                  value={formatMs(overviewSummary.latency_avg)}
-                  trend={overviewLatencyTrend}
-                />
-                <MetricCard
-                  title="Средний пинг"
-                  value={formatMs(overviewSummary.ping_avg)}
-                  trend={overviewPingTrend}
-                />
-                <MetricCard
-                  title="% успешных DNS"
-                  value={formatPercent(overviewSummary.dns_success_rate)}
-                  trend={overviewDnsTrend}
-                  trendFormatter={(value) => `${value.toFixed(1)}%`}
-                />
-                <MetricCard
-                  title="Средний срок SSL"
-                  value={formatDays(overviewSummary.ssl_days_left_avg)}
-                  trend={overviewSslTrend}
-                  trendFormatter={(value) => `${value.toFixed(1)} дн.`}
-                />
-              </div>
-              <div className="xl:col-span-2">
-                <TrafficLightPie data={overviewTraffic} title="Светофор (все сайты)" />
-              </div>
-            </div>
             <div className="grid gap-4 xl:grid-cols-2">
               <LatencyChart
                 data={overviewLatencySeries}
@@ -497,114 +634,29 @@ export default function DashboardPage() {
             </div>
             <TrafficLightTimeline data={overviewTrafficSeries} title="Распределение статусов (все сайты)" />
           </section>
-
-          <div className="sticky top-16 z-30 -mx-6 border-y border-slate-200/80 bg-slate-50/90 px-6 py-4 backdrop-blur">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-
-                <div className="flex-1 overflow-x-auto">
-                  <div className="flex w-max gap-2">
-                    {sites.map((site) => {
-                      const isActive = site.url === selectedSiteUrl;
-                      return (
-                        <button
-                          key={site.url}
-                          type="button"
-                          onClick={() => setSelectedSiteUrl(site.url)}
-                          className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left shadow-sm transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-                            isActive
-                              ? "border-slate-900 bg-slate-900 text-white"
-                              : "border-slate-200 bg-white text-slate-600"
-                          }`}
-                        >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/10 text-sm font-semibold">
-                            {getInitials(site)}
-                          </span>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-semibold leading-5">{getHostname(site)}</span>
-
-                            <span className="text-xs text-slate-400">{site.url}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {TIME_RANGES.map((range) => {
-                    const isActive = range.value === timeRange;
-                    return (
-                      <button
-                        key={range.value}
-                        type="button"
-                        onClick={() => setTimeRange(range.value)}
-                        className={`h-9 rounded-full border px-4 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-                          isActive ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600"
-                        }`}
-                      >
-                        {range.label}
-
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                <label className="flex items-center gap-2 text-sm text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={autoRefreshEnabled}
-                    onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
-                  />
-                  Автообновление
-                </label>
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <span>Интервал</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={60}
-                    value={autoRefreshInterval}
-                    onChange={(event) => setAutoRefreshInterval(clamp(Number(event.target.value) || 1, 1, 60))}
-                    className="h-8 w-16 rounded-md border border-slate-200 bg-white px-2 text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                  />
-                  <span>сек.</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleManualRefresh}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                >
-                  <RefreshCw className={`h-4 w-4 ${isSiteLoading || isOverviewLoading ? "animate-spin" : ""}`} />
-                  Обновить
-                </button>
-                {lastUpdated ? (
-                  <span className="text-sm text-slate-500">Обновлено {lastUpdated.toLocaleTimeString()}</span>
-                ) : null}
-                {isSiteLoading || isOverviewLoading ? (
-                  <span className="text-sm text-slate-400">Обновляем данные…</span>
-                ) : null}
-
-              </div>
-            </div>
-          </div>
-
           <section className="space-y-6">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-slate-900">Дашборд сайта</h2>
-                <p className="text-sm text-slate-500">{selectedSite ? selectedSite.url : "Выберите ресурс"}</p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Выбранный сайт</span>
+                <h2 className="text-xl font-semibold text-slate-900">
+                  {selectedSite ? getHostname(selectedSite) : "Выберите ресурс"}
+                </h2>
+                <p className="text-sm text-slate-500">
+                  {selectedSite ? selectedSite.url : "Выберите сайт из панели выше, чтобы увидеть детали."}
+                </p>
               </div>
               {selectedSite ? (
-                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${statusBadgeClass}`}>
+                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium capitalize ${statusBadgeClass}`}>
+
                   <span className="h-2 w-2 rounded-full bg-current" />
                   {activeTrafficLight}
                 </span>
               ) : null}
             </div>
             {error ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>
+
+              <div className="rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm">{error}</div>
+
             ) : null}
             <div className="grid gap-4 xl:grid-cols-5">
               <div className="grid gap-4 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
@@ -618,10 +670,9 @@ export default function DashboardPage() {
                   value={formatMs(sitePingAvg)}
                   trend={sitePingTrend}
                 />
-                <MetricCard
-                  title="Доступность"
-                  value={uptime === null ? "—" : `${uptime}%`}
-                />
+
+                <MetricCard title="Доступность" value={uptime === null ? "—" : `${uptime}%`} />
+
                 <MetricCard
                   title="% успешных DNS"
                   value={formatPercent(siteDnsSuccess)}
@@ -636,12 +687,9 @@ export default function DashboardPage() {
                   accent={sslAccent}
                 />
               </div>
-              <MetricCard
-                title="Проверок"
-                value={siteChecks}
-                description="Количество записей в выборке"
-                compact
-              />
+
+              <MetricCard title="Проверок" value={siteChecks} description="Количество записей в выборке" compact />
+
             </div>
             <IncidentBanner incidentCount={incidentsCount} windowSize={filteredLogs.length || siteChecks} />
             <div className="grid gap-4 xl:grid-cols-2">
@@ -687,7 +735,6 @@ export default function DashboardPage() {
           </section>
         </div>
       </div>
-
       <LogDetailsDrawer
         log={selectedLog}
         open={Boolean(selectedLog)}
@@ -697,5 +744,6 @@ export default function DashboardPage() {
       />
     </div>
   );
+
 }
 

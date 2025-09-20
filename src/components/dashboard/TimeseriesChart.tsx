@@ -11,7 +11,6 @@ import {
 } from "recharts";
 import type { ChartPoint, LogRecord } from "@/utils/stats";
 
-
 export type TimeseriesChartProps = {
   data: ChartPoint[];
   color: string;
@@ -98,4 +97,3 @@ const TimeseriesChartComponent = ({
 };
 
 export const TimeseriesChart = memo(TimeseriesChartComponent);
-

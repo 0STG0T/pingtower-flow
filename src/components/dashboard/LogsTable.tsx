@@ -265,7 +265,7 @@ export const LogsTable = memo(function LogsTable({
             <HeaderCell>DNS</HeaderCell>
             <HeaderCell>Редиректы</HeaderCell>
           </div>
-
+ 
           {isVirtualized ? (
             <VirtualizedRows logs={logs} onRowClick={onRowClick} />
           ) : (
