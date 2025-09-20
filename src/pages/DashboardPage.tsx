@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios, { CanceledError } from "axios";
+
 import clsx from "clsx";
+
 import {
   aggregateTrafficLight,
   buildAggregatedTimeseries,
@@ -25,10 +27,12 @@ import { PingChart } from "@/components/dashboard/PingChart";
 import { TimeseriesChart } from "@/components/dashboard/TimeseriesChart";
 import { TrafficLightTimeline } from "@/components/dashboard/TrafficLightTimeline";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
 import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
+
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { RefreshCw } from "lucide-react";
 
@@ -39,12 +43,14 @@ const TIME_RANGES = [
   { value: "1m", label: "1 мин", durationMs: 60_000, groupBy: "1m" },
   { value: "10m", label: "10 мин", durationMs: 600_000, groupBy: "10m" },
   { value: "60m", label: "1 час", durationMs: 3_600_000, groupBy: "60m" },
+
   { value: "1d", label: "1 день", durationMs: 86_400_000, groupBy: "1d" },
   { value: "1w", label: "1 неделя", durationMs: 604_800_000, groupBy: "1w" },
 ] as const;
 
 const DEFAULT_LIMIT = 500;
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
+
 
 const TRAFFIC_LABELS: Record<TrafficLight, string> = {
   green: "Стабильно",
@@ -57,6 +63,7 @@ const TRAFFIC_BADGE: Record<TrafficLight, string> = {
   orange: "border-amber-200 bg-amber-50 text-amber-600",
   red: "border-rose-200 bg-rose-50 text-rose-600",
 };
+
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -79,6 +86,7 @@ const buildTrend = (series: ChartPoint[], limit = 120) => {
 type Site = {
   name: string;
   url: string;
+
 };
 
 const getInitials = (site: Site) => {
@@ -109,6 +117,7 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+
 };
 
 const formatMs = (value: number | null) => (value === null ? "—" : `${Math.round(value)} мс`);
@@ -121,6 +130,7 @@ const formatDays = (value: number | null, digits = 1) =>
 export default function DashboardPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
+
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [overview, setOverview] = useState<AggregatedDashboardResponse | null>(null);
@@ -128,6 +138,7 @@ export default function DashboardPage() {
   const [isOverviewLoading, setIsOverviewLoading] = useState(false);
   const [isSiteLoading, setIsSiteLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
@@ -151,7 +162,9 @@ export default function DashboardPage() {
         if (!isMounted) return;
         setSites(response.data);
         if (response.data.length > 0) {
+
           setSelectedSiteUrl((current) => current || response.data[0].url);
+
         }
       } catch (err) {
         console.error("Failed to load sites", err);
@@ -192,6 +205,7 @@ export default function DashboardPage() {
         if (!signal?.aborted) {
           setIsOverviewLoading(false);
         }
+
       }
     },
     [timeRangeConfig.durationMs, timeRangeConfig.groupBy],
@@ -207,6 +221,7 @@ export default function DashboardPage() {
 
       setIsSiteLoading(true);
       const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
 
       try {
         const [aggregateResponse, logsResponse] = await Promise.all([
@@ -271,6 +286,7 @@ export default function DashboardPage() {
     return () => window.clearInterval(intervalId);
   }, [autoRefreshEnabled, autoRefreshInterval, fetchOverviewData, fetchSiteData]);
 
+
   const handleManualRefresh = useCallback(() => {
     fetchOverviewData();
     fetchSiteData();
@@ -296,10 +312,12 @@ export default function DashboardPage() {
       const trafficAllowed = filters.traffic.size === 0 || filters.traffic.has(log.traffic_light as TrafficLight);
       if (!trafficAllowed) return false;
 
+
       const status = log.http_status;
       const statusAllowed =
         status === null || (status >= filters.statusRange.min && status <= filters.statusRange.max);
       if (!statusAllowed) return false;
+
 
       if (filters.search.trim().length > 0) {
         const value = log.url ?? "";
@@ -425,10 +443,12 @@ export default function DashboardPage() {
   }, [selectedLog, sortedLogs]);
 
   const latestLog = filteredLogs[filteredLogs.length - 1] ?? sortedLogs[sortedLogs.length - 1] ?? null;
+
   const activeTrafficLight = (latestLog?.traffic_light ?? "green") as TrafficLight;
   const activeTrafficLabel = TRAFFIC_LABELS[activeTrafficLight];
 
   const statusBadgeClass = useMemo(() => TRAFFIC_BADGE[activeTrafficLight], [activeTrafficLight]);
+
   const handleToggleTraffic = useCallback((traffic: TrafficLight) => {
     setTrafficFilter((prev) => {
       const next = new Set(prev);
@@ -458,9 +478,11 @@ export default function DashboardPage() {
   const rangeLabel = timeRangeConfig.label;
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString() : null;
 
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-slate-100/60">
       <div className="flex-1 overflow-y-auto">
+
         <main className="mx-auto flex max-w-[1600px] flex-col gap-12 px-6 pb-16 pt-8">
           <section className="relative overflow-hidden rounded-[32px] border border-slate-200/70 bg-slate-900 text-white shadow-[0_45px_120px_-60px_rgba(15,23,42,0.85)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.4),transparent_55%),radial-gradient(circle_at_bottom_right,rgba(129,140,248,0.35),transparent_55%)]" />
@@ -614,6 +636,7 @@ export default function DashboardPage() {
                       </button>
                       <div className="flex items-center gap-1 text-xs text-slate-400">
                         <span>каждые</span>
+
                         <input
                           type="number"
                           min={1}
@@ -621,6 +644,7 @@ export default function DashboardPage() {
                           step={1}
                           value={autoRefreshInterval}
                           onChange={(event) => setAutoRefreshInterval(clamp(Number(event.target.value) || 1, 1, 60))}
+
                           className="h-7 w-16 rounded-full border border-slate-200 bg-white px-2 text-right text-sm text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
                           aria-label="Интервал автообновления, секунд"
                         />
@@ -639,12 +663,12 @@ export default function DashboardPage() {
                   <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-slate-400">
                     {lastUpdatedLabel ? <span>Обновлено {lastUpdatedLabel}</span> : null}
                     {isSiteLoading || isOverviewLoading ? <span>Обновляем данные…</span> : null}
+
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
           <section className="space-y-5">
             <header className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -655,6 +679,7 @@ export default function DashboardPage() {
                 Отображение агрегированных значений по всему парку сайтов.
               </p>
             </header>
+
             <div className="grid gap-4 xl:grid-cols-2">
               <LatencyChart
                 data={overviewLatencySeries}
@@ -674,6 +699,7 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Выбранный сайт</span>
+
                 <h2 className="text-xl font-semibold text-slate-900">
                   {selectedSite ? getHostname(selectedSite) : "Выберите ресурс"}
                 </h2>
@@ -682,6 +708,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               {selectedSite ? (
+
                 <div className="flex flex-col items-end gap-2 text-right">
                   <span className={clsx("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium", statusBadgeClass)}>
                     <span className="h-2.5 w-2.5 rounded-full bg-current" />
@@ -693,6 +720,7 @@ export default function DashboardPage() {
             </div>
             {error ? (
               <div className="rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm">{error}</div>
+
             ) : null}
             <div className="grid gap-4 xl:grid-cols-5">
               <div className="grid gap-4 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
@@ -706,7 +734,9 @@ export default function DashboardPage() {
                   value={formatMs(sitePingAvg)}
                   trend={sitePingTrend}
                 />
+
                 <MetricCard title="Доступность" value={uptime === null ? "—" : `${uptime}%`} />
+
                 <MetricCard
                   title="% успешных DNS"
                   value={formatPercent(siteDnsSuccess)}
@@ -721,7 +751,9 @@ export default function DashboardPage() {
                   accent={sslAccent}
                 />
               </div>
+
               <MetricCard title="Проверок" value={siteChecks} description="Количество записей в выборке" compact />
+
             </div>
             <IncidentBanner incidentCount={incidentsCount} windowSize={filteredLogs.length || siteChecks} />
             <div className="grid gap-4 xl:grid-cols-2">
@@ -765,7 +797,9 @@ export default function DashboardPage() {
               onLimitChange={setLimit}
             />
           </section>
+
         </main>
+
       </div>
       <LogDetailsDrawer
         log={selectedLog}
