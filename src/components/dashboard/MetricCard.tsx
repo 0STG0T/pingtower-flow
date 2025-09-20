@@ -9,6 +9,8 @@ export type MetricCardProps = {
   trend?: { timestamp: number; value: number }[];
   accent?: "default" | "warning" | "danger";
   compact?: boolean;
+  trendFormatter?: (value: number) => string;
+
 };
 
 const ACCENTS: Record<NonNullable<MetricCardProps["accent"]>, string> = {
@@ -24,6 +26,7 @@ export function MetricCard({
   trend,
   accent = "default",
   compact = false,
+  trendFormatter,
 }: MetricCardProps) {
   return (
     <Card
@@ -45,7 +48,8 @@ export function MetricCard({
                 <Tooltip
                   wrapperClassName="!bg-slate-900/90 !text-white"
                   labelFormatter={(value) => new Date(value).toLocaleTimeString()}
-                  formatter={(value: number) => [`${value.toFixed(0)} ms`, ""]}
+                  formatter={(value: number) => [trendFormatter ? trendFormatter(value) : `${value.toFixed(0)} мс`, ""]}
+
                 />
                 <Line
                   type="monotone"

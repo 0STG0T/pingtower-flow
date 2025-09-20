@@ -30,9 +30,11 @@ export type LogsTableProps = {
 
 const TRAFFIC_ORDER: TrafficLight[] = ["green", "orange", "red"];
 const TRAFFIC_LABELS: Record<TrafficLight, string> = {
-  green: "green",
-  orange: "orange",
-  red: "red",
+
+  green: "зелёный",
+  orange: "оранжевый",
+  red: "красный",
+
 };
 
 const TRAFFIC_COLOR: Record<TrafficLight, string> = {
@@ -70,7 +72,6 @@ const LogRow = memo(function LogRow({ log, onRowClick, style }: LogRowProps) {
       }}
       className="cursor-pointer border-b border-slate-100/70 bg-white px-4 text-xs text-slate-600 transition hover:bg-slate-50"
       onClick={() => onRowClick(log)}
-
     >
       <div className="flex h-full items-center text-slate-500">
         {new Date(log.timestamp).toLocaleString()}
@@ -169,7 +170,6 @@ export const LogsTable = memo(function LogsTable({
 }: LogsTableProps) {
   const isVirtualized = logs.length > 1000;
 
-
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/85 p-4 shadow-sm backdrop-blur">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -256,14 +256,14 @@ export const LogsTable = memo(function LogsTable({
             className="sticky top-0 z-10 grid bg-white/95 text-left"
             style={{ gridTemplateColumns: GRID_TEMPLATE }}
           >
-            <HeaderCell>Timestamp</HeaderCell>
-            <HeaderCell>Traffic</HeaderCell>
+            <HeaderCell>Время</HeaderCell>
+            <HeaderCell>Статус</HeaderCell>
             <HeaderCell>HTTP</HeaderCell>
-            <HeaderCell>Latency</HeaderCell>
-            <HeaderCell>Ping</HeaderCell>
-            <HeaderCell>SSL days</HeaderCell>
+            <HeaderCell>Латентность</HeaderCell>
+            <HeaderCell>Пинг</HeaderCell>
+            <HeaderCell>SSL (дн.)</HeaderCell>
             <HeaderCell>DNS</HeaderCell>
-            <HeaderCell>Redirects</HeaderCell>
+            <HeaderCell>Редиректы</HeaderCell>
           </div>
 
           {isVirtualized ? (
@@ -271,7 +271,6 @@ export const LogsTable = memo(function LogsTable({
           ) : (
             <RegularRows logs={logs} onRowClick={onRowClick} />
           )}
-
         </div>
       </div>
     </div>

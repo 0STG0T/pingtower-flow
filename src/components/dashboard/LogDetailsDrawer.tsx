@@ -41,14 +41,16 @@ const DrawerContent = ({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Статистика</h3>
             <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="rounded-xl border border-slate-200/70 p-3">
-                <p className="text-xs font-medium text-slate-500">Latency trend</p>
+                <p className="text-xs font-medium text-slate-500">Латентность</p>
+
                 <div className="mt-2 h-32">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={latencyTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
                       <XAxis dataKey="timestamp" hide type="number" domain={["auto", "auto"]} />
                       <Tooltip
                         labelFormatter={(value) => new Date(value).toLocaleTimeString()}
-                        formatter={(value: number) => [`${value} ms`, "Latency"]}
+                        formatter={(value: number) => [`${value} мс`, "Латентность"]}
+
                       />
                       <Line type="monotone" dataKey="value" stroke="#0f172a" strokeWidth={2} dot={false} isAnimationActive={false} />
                     </LineChart>
@@ -56,14 +58,16 @@ const DrawerContent = ({
                 </div>
               </div>
               <div className="rounded-xl border border-slate-200/70 p-3">
-                <p className="text-xs font-medium text-slate-500">Ping trend</p>
+                <p className="text-xs font-medium text-slate-500">Пинг</p>
+
                 <div className="mt-2 h-32">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={pingTrend} margin={{ top: 8, right: 12, left: -16, bottom: 0 }}>
                       <XAxis dataKey="timestamp" hide type="number" domain={["auto", "auto"]} />
                       <Tooltip
                         labelFormatter={(value) => new Date(value).toLocaleTimeString()}
-                        formatter={(value: number) => [`${value} ms`, "Ping"]}
+                        formatter={(value: number) => [`${value} мс`, "Пинг"]}
+
                       />
                       <Line type="monotone" dataKey="value" stroke="#2563eb" strokeWidth={2} dot={false} isAnimationActive={false} />
                     </LineChart>
@@ -73,7 +77,9 @@ const DrawerContent = ({
             </div>
           </div>
           <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Payload</h3>
+
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">JSON</h3>
+
             <pre className="mt-2 overflow-x-auto rounded-xl border border-slate-200/70 bg-slate-950/95 p-4 text-xs text-slate-200">
               {JSON.stringify(log, null, 2)}
             </pre>
