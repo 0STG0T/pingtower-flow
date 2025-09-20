@@ -24,12 +24,15 @@ import { PingChart } from "@/components/dashboard/PingChart";
 import { TimeseriesChart } from "@/components/dashboard/TimeseriesChart";
 import { TrafficLightTimeline } from "@/components/dashboard/TrafficLightTimeline";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
 import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
+
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { RefreshCw } from "lucide-react";
+
 
 const API_URL = "http://localhost:8000";
 
@@ -63,9 +66,11 @@ const buildTrend = (series: ChartPoint[], limit = 120) => {
 };
 
 
+
 type Site = {
   name: string;
   url: string;
+
 };
 
 const getInitials = (site: Site) => {
@@ -96,6 +101,7 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+
 };
 
 const formatMs = (value: number | null) => (value === null ? "—" : `${Math.round(value)} мс`);
@@ -108,6 +114,7 @@ const formatDays = (value: number | null, digits = 1) =>
 export default function DashboardPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
+
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [overview, setOverview] = useState<AggregatedDashboardResponse | null>(null);
@@ -115,6 +122,7 @@ export default function DashboardPage() {
   const [isOverviewLoading, setIsOverviewLoading] = useState(false);
   const [isSiteLoading, setIsSiteLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
@@ -132,13 +140,14 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let isMounted = true;
+
     const loadSites = async () => {
       try {
         const response = await axios.get<Site[]>(`${API_URL}/sites`);
         if (!isMounted) return;
         setSites(response.data);
         if (response.data.length > 0) {
-          setSelectedSiteUrl((current) => current || response.data[0].url);
+
         }
       } catch (err) {
         console.error("Failed to load sites", err);
@@ -394,6 +403,7 @@ export default function DashboardPage() {
   const latestLog = filteredLogs[filteredLogs.length - 1] ?? sortedLogs[sortedLogs.length - 1] ?? null;
   const activeTrafficLight = latestLog?.traffic_light ?? "green";
 
+
   const statusBadgeClass = useMemo(() => {
     switch (activeTrafficLight) {
       case "red":
@@ -429,6 +439,7 @@ export default function DashboardPage() {
   const overviewSiteCount = sites.length;
   const sslAccent =
     sslDaysLeftMin === null ? "default" : sslDaysLeftMin <= 0 ? "danger" : sslDaysLeftMin < 7 ? "warning" : "default";
+
 
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
@@ -490,6 +501,7 @@ export default function DashboardPage() {
           <div className="sticky top-16 z-30 -mx-6 border-y border-slate-200/80 bg-slate-50/90 px-6 py-4 backdrop-blur">
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-4">
+
                 <div className="flex-1 overflow-x-auto">
                   <div className="flex w-max gap-2">
                     {sites.map((site) => {
@@ -510,6 +522,7 @@ export default function DashboardPage() {
                           </span>
                           <div className="flex flex-col">
                             <span className="text-sm font-semibold leading-5">{getHostname(site)}</span>
+
                             <span className="text-xs text-slate-400">{site.url}</span>
                           </div>
                         </button>
@@ -530,6 +543,7 @@ export default function DashboardPage() {
                         }`}
                       >
                         {range.label}
+
                       </button>
                     );
                   })}
@@ -571,6 +585,7 @@ export default function DashboardPage() {
                 {isSiteLoading || isOverviewLoading ? (
                   <span className="text-sm text-slate-400">Обновляем данные…</span>
                 ) : null}
+
               </div>
             </div>
           </div>
@@ -672,6 +687,7 @@ export default function DashboardPage() {
           </section>
         </div>
       </div>
+
       <LogDetailsDrawer
         log={selectedLog}
         open={Boolean(selectedLog)}

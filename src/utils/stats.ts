@@ -46,6 +46,7 @@ const asNumber = (value: number | null | undefined) =>
 
 const toFixedNumber = (value: number, digits = 2) => Number(value.toFixed(digits));
 
+
 export function calcAvgLatency(logs: LogRecord[]): number | null {
   const values = logs
     .map((log) => asNumber(log.latency_ms))
@@ -89,6 +90,7 @@ export function minSslDays(logs: LogRecord[]): number | null {
   return Math.min(...values);
 }
 
+
 export function calcDnsSuccessRate(logs: LogRecord[]): number | null {
   if (logs.length === 0) return null;
 
@@ -101,6 +103,7 @@ export function calcDnsSuccessRate(logs: LogRecord[]): number | null {
   return toFixedNumber((success / logs.length) * 100, 1);
 }
 
+
 export function aggregateTrafficLight(logs: LogRecord[]): TrafficLightAggregate {
   return logs.reduce<TrafficLightAggregate>(
     (acc, log) => {
@@ -110,6 +113,7 @@ export function aggregateTrafficLight(logs: LogRecord[]): TrafficLightAggregate 
     { green: 0, orange: 0, red: 0 },
   );
 }
+
 
 export function mergeTrafficLightAggregates(buckets: AggregatedBucket[]): TrafficLightAggregate {
   return buckets.reduce<TrafficLightAggregate>(
@@ -143,10 +147,12 @@ export function getSparklineSeries(
     .filter((value): value is { timestamp: number; value: number } => value !== null);
 }
 
+
 export type ChartPoint<TMeta = unknown> = {
   timestamp: number;
   value: number;
   meta?: TMeta;
+
 };
 
 export function buildTimeseries(
@@ -155,6 +161,7 @@ export function buildTimeseries(
   maxPoints = 3000,
 ): ChartPoint<LogRecord>[] {
   const points: ChartPoint<LogRecord>[] = [];
+
 
   const safeLogs = logs.filter((log) => asNumber(log[field]) !== null);
   if (safeLogs.length === 0) return points;
@@ -169,8 +176,10 @@ export function buildTimeseries(
     const referenceLog = bucket[bucket.length - 1];
     points.push({
       timestamp: new Date(referenceLog.timestamp).getTime(),
+
       value: toFixedNumber(avgValue),
       meta: referenceLog,
+
     });
   }
 

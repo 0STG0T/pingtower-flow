@@ -1,6 +1,7 @@
 import { memo } from "react";
 import {
   CartesianGrid,
+
   Line,
   LineChart,
   ResponsiveContainer,
@@ -10,12 +11,14 @@ import {
 } from "recharts";
 import type { ChartPoint, LogRecord } from "@/utils/stats";
 
+
 export type TimeseriesChartProps = {
   data: ChartPoint[];
   color: string;
   label: string;
   valueFormatter?: (value: number) => string;
   tooltipFormatter?: (meta: unknown, value: number) => string;
+
 };
 
 const formatTimestamp = (value: number) => {
@@ -39,6 +42,7 @@ const TimeseriesChartComponent = ({
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 p-4 shadow-sm backdrop-blur">
       <h3 className="text-sm font-semibold text-slate-600">{label}</h3>
+
       <div className="h-64 w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} syncId="uptime-timeline" margin={{ top: 10, right: 16, left: 0, bottom: 0 }}>
@@ -75,6 +79,7 @@ const TimeseriesChartComponent = ({
                   ];
                 }
                 return [`${label}: ${valueFormatter(value)}`, ""];
+
               }}
             />
             <Line
@@ -93,3 +98,4 @@ const TimeseriesChartComponent = ({
 };
 
 export const TimeseriesChart = memo(TimeseriesChartComponent);
+
