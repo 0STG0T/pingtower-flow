@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios, { CanceledError } from "axios";
 import {
@@ -18,6 +19,7 @@ import { LatencyChart } from "@/components/dashboard/LatencyChart";
 import { PingChart } from "@/components/dashboard/PingChart";
 import { TrafficLightPie } from "@/components/dashboard/TrafficLightPie";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
@@ -39,9 +41,11 @@ const DEFAULT_LIMIT = 500;
 
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
 
+
 type Site = {
   name: string;
   url: string;
+
 };
 
 const getInitials = (site: Site) => {
@@ -72,6 +76,7 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+
 };
 
 export default function DashboardPage() {
@@ -180,6 +185,7 @@ export default function DashboardPage() {
   const sortedLogs = useMemo(() => {
     return [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [logs]);
+
 
   const distribution = useMemo(() => aggregateTrafficLight(sortedLogs), [sortedLogs]);
 
@@ -488,6 +494,7 @@ export default function DashboardPage() {
         latencyTrend={latencyDrawerTrend}
         pingTrend={pingDrawerTrend}
       />
+
     </div>
   );
 }
