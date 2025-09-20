@@ -1,5 +1,7 @@
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios, { CanceledError } from "axios";
+
 import {
   aggregateTrafficLight,
   buildTimeseries,
@@ -18,6 +20,7 @@ import { LatencyChart } from "@/components/dashboard/LatencyChart";
 import { PingChart } from "@/components/dashboard/PingChart";
 import { TrafficLightPie } from "@/components/dashboard/TrafficLightPie";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
@@ -38,6 +41,7 @@ const TIME_RANGES = [
 const DEFAULT_LIMIT = 500;
 
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
+
 
 type Site = {
   name: string;
@@ -72,6 +76,31 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+};
+
+const STATUS_CONFIG: Record<
+  string,
+  {
+    label: string;
+    badge: string;
+    dot: string;
+  }
+> = {
+  green: {
+    label: "Все системы в норме",
+    badge: "border-emerald-200/60 bg-emerald-50/70 text-emerald-700",
+    dot: "bg-emerald-400",
+  },
+  orange: {
+    label: "Есть предупреждения",
+    badge: "border-amber-200/70 bg-amber-50/70 text-amber-700",
+    dot: "bg-amber-400",
+  },
+  red: {
+    label: "Требует внимания",
+    badge: "border-rose-200/70 bg-rose-50/75 text-rose-700",
+    dot: "bg-rose-400",
+  },
 };
 
 export default function DashboardPage() {
@@ -288,6 +317,83 @@ export default function DashboardPage() {
 
   const sslAccent = sslDaysLeft === null ? "default" : sslDaysLeft <= 0 ? "danger" : sslDaysLeft < 7 ? "warning" : "default";
 
+  const metrics = useMemo(() => {
+    if (logs.length === 0) {
+      return {
+        latestLog: null,
+        averageLatency: null,
+        latencySamples: 0,
+        averagePing: null,
+        pingSamples: 0,
+        uptimePercent: null,
+        successChecks: 0,
+        totalChecks: 0,
+        sslDaysLeft: null,
+        incidents: 0,
+      };
+    }
+
+    const latestLog = logs[0] ?? null;
+
+    const latencyValues = logs
+      .map((log) => log.latency_ms)
+      .filter((value): value is number => value !== null);
+    const averageLatency =
+      latencyValues.length > 0
+        ? Math.round(
+            latencyValues.reduce((acc, value) => acc + value, 0) /
+              latencyValues.length,
+          )
+        : null;
+
+    const pingValues = logs
+      .map((log) => log.ping_ms)
+      .filter((value): value is number => value !== null);
+    const averagePing =
+      pingValues.length > 0
+        ? Math.round(
+            pingValues.reduce((acc, value) => acc + value, 0) / pingValues.length,
+          )
+        : null;
+
+    const totalChecks = logs.length;
+    const successChecks = logs.filter(
+      (log) => typeof log.http_status === "number" && log.http_status < 400,
+    ).length;
+    const uptimePercent =
+      totalChecks > 0 ? Math.round((successChecks / totalChecks) * 100) : null;
+
+    const sslValues = logs
+      .map((log) => log.ssl_days_left)
+      .filter((value): value is number => value !== null);
+    const sslDaysLeft =
+      sslValues.length > 0 ? Math.min(...sslValues) : null;
+
+    const incidents = logs.filter((log) => log.traffic_light !== "green").length;
+
+    return {
+      latestLog,
+      averageLatency,
+      latencySamples: latencyValues.length,
+      averagePing,
+      pingSamples: pingValues.length,
+      uptimePercent,
+      successChecks,
+      totalChecks,
+      sslDaysLeft,
+      incidents,
+    };
+  }, [logs]);
+
+  const activeStatusKey = metrics.latestLog?.traffic_light ?? "green";
+  const status = STATUS_CONFIG[activeStatusKey] ?? STATUS_CONFIG.green;
+
+  const handleTabChange = (value: string) => {
+    setSelectedSite(value);
+  };
+
+  const hasLogs = logs.length > 0;
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto">
@@ -488,6 +594,7 @@ export default function DashboardPage() {
         latencyTrend={latencyDrawerTrend}
         pingTrend={pingDrawerTrend}
       />
+
     </div>
   );
 }
