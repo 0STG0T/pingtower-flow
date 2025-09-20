@@ -1,3 +1,4 @@
+
 import {
   memo,
   useCallback,
@@ -7,6 +8,7 @@ import {
   type ReactNode,
   type UIEvent,
 } from "react";
+
 import type { LogRecord, TrafficLight } from "@/utils/stats";
 
 export type LogsTableFilters = {
@@ -68,6 +70,7 @@ const LogRow = memo(function LogRow({ log, onRowClick, style }: LogRowProps) {
       }}
       className="cursor-pointer border-b border-slate-100/70 bg-white px-4 text-xs text-slate-600 transition hover:bg-slate-50"
       onClick={() => onRowClick(log)}
+
     >
       <div className="flex h-full items-center text-slate-500">
         {new Date(log.timestamp).toLocaleString()}
@@ -166,6 +169,7 @@ export const LogsTable = memo(function LogsTable({
 }: LogsTableProps) {
   const isVirtualized = logs.length > 1000;
 
+
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/85 p-4 shadow-sm backdrop-blur">
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
@@ -261,11 +265,13 @@ export const LogsTable = memo(function LogsTable({
             <HeaderCell>DNS</HeaderCell>
             <HeaderCell>Redirects</HeaderCell>
           </div>
+
           {isVirtualized ? (
             <VirtualizedRows logs={logs} onRowClick={onRowClick} />
           ) : (
             <RegularRows logs={logs} onRowClick={onRowClick} />
           )}
+
         </div>
       </div>
     </div>
