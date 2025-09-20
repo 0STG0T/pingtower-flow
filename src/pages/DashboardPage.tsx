@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios, { CanceledError } from "axios";
+
+import clsx from "clsx";
+
 import {
   aggregateTrafficLight,
   buildAggregatedTimeseries,
@@ -48,6 +51,20 @@ const TIME_RANGES = [
 const DEFAULT_LIMIT = 500;
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
 
+
+const TRAFFIC_LABELS: Record<TrafficLight, string> = {
+  green: "Стабильно",
+  orange: "Предупреждения",
+  red: "Инциденты",
+};
+
+const TRAFFIC_BADGE: Record<TrafficLight, string> = {
+  green: "border-emerald-200 bg-emerald-50 text-emerald-600",
+  orange: "border-amber-200 bg-amber-50 text-amber-600",
+  red: "border-rose-200 bg-rose-50 text-rose-600",
+};
+
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const isAggregatedBucket = (value: unknown): value is AggregatedBucket => {
@@ -64,7 +81,6 @@ const aggregatedTooltip = (label: string, unit = "", digits = 0) => (meta: unkno
 const buildTrend = (series: ChartPoint[], limit = 120) => {
   return series.slice(-limit).map((point) => ({ timestamp: point.timestamp, value: point.value }));
 };
-
 
 
 type Site = {
@@ -270,6 +286,7 @@ export default function DashboardPage() {
     return () => window.clearInterval(intervalId);
   }, [autoRefreshEnabled, autoRefreshInterval, fetchOverviewData, fetchSiteData]);
 
+
   const handleManualRefresh = useCallback(() => {
     fetchOverviewData();
     fetchSiteData();
@@ -295,10 +312,12 @@ export default function DashboardPage() {
       const trafficAllowed = filters.traffic.size === 0 || filters.traffic.has(log.traffic_light as TrafficLight);
       if (!trafficAllowed) return false;
 
+
       const status = log.http_status;
       const statusAllowed =
         status === null || (status >= filters.statusRange.min && status <= filters.statusRange.max);
       if (!statusAllowed) return false;
+
 
       if (filters.search.trim().length > 0) {
         const value = log.url ?? "";
@@ -424,18 +443,12 @@ export default function DashboardPage() {
   }, [selectedLog, sortedLogs]);
 
   const latestLog = filteredLogs[filteredLogs.length - 1] ?? sortedLogs[sortedLogs.length - 1] ?? null;
-  const activeTrafficLight = latestLog?.traffic_light ?? "green";
 
-  const statusBadgeClass = useMemo(() => {
-    switch (activeTrafficLight) {
-      case "red":
-        return "bg-rose-100 text-rose-700 border border-rose-200";
-      case "orange":
-        return "bg-amber-100 text-amber-700 border border-amber-200";
-      default:
-        return "bg-emerald-100 text-emerald-700 border border-emerald-200";
-    }
-  }, [activeTrafficLight]);
+  const activeTrafficLight = (latestLog?.traffic_light ?? "green") as TrafficLight;
+  const activeTrafficLabel = TRAFFIC_LABELS[activeTrafficLight];
+
+  const statusBadgeClass = useMemo(() => TRAFFIC_BADGE[activeTrafficLight], [activeTrafficLight]);
+
   const handleToggleTraffic = useCallback((traffic: TrafficLight) => {
     setTrafficFilter((prev) => {
       const next = new Set(prev);
@@ -462,133 +475,168 @@ export default function DashboardPage() {
   const sslAccent =
     sslDaysLeftMin === null ? "default" : sslDaysLeftMin <= 0 ? "danger" : sslDaysLeftMin < 7 ? "warning" : "default";
 
+  const rangeLabel = timeRangeConfig.label;
+  const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString() : null;
+
+
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-slate-100/60">
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-12 px-6 pb-16 pt-6">
-          <div className="sticky top-16 z-40 -mx-6">
-            <div className="rounded-3xl border border-slate-200/80 bg-white/95 px-6 py-6 shadow-[0_20px_60px_-32px_rgba(15,23,42,0.45)] backdrop-blur">
-              <div className="space-y-6">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      <span>Дашборд</span>
-                      <span className="h-1 w-1 rounded-full bg-slate-300" />
-                      <span>Общая статистика</span>
-                    </div>
-                    <h1 className="text-2xl font-semibold text-slate-900">Мониторинг доступности</h1>
-                    <p className="text-sm text-slate-500">Все сайты за выбранный период.</p>
+
+        <main className="mx-auto flex max-w-[1600px] flex-col gap-12 px-6 pb-16 pt-8">
+          <section className="relative overflow-hidden rounded-[32px] border border-slate-200/70 bg-slate-900 text-white shadow-[0_45px_120px_-60px_rgba(15,23,42,0.85)]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.4),transparent_55%),radial-gradient(circle_at_bottom_right,rgba(129,140,248,0.35),transparent_55%)]" />
+            <div className="relative z-10 px-8 py-9 sm:px-10">
+              <div className="flex flex-wrap items-start justify-between gap-6">
+                <div className="space-y-3">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/70">
+                    <span>Дашборд</span>
+                    <span className="h-1 w-1 rounded-full bg-white/40" />
+                    <span>Все сайты</span>
+                  </span>
+                  <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">Мониторинг доступности</h1>
+                  <p className="max-w-xl text-sm text-white/70">
+                    Сводка по всем ресурсам за период «{rangeLabel}». Метрики обновляются автоматически и помогают быстро перейти от общей картины к деталям.
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-3 text-right text-sm text-white/70">
+                  <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 shadow-inner">
+                    <span className="text-[13px] uppercase tracking-[0.25em] text-white/60">Сайтов</span>
+                    <span className="text-2xl font-semibold text-white">{overviewSiteCount}</span>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      <span className="h-2 w-2 rounded-full bg-slate-400" />
-                      {`Сайтов: ${overviewSiteCount}`}
+                  {overviewError ? (
+                    <span className="rounded-xl border border-rose-400/60 bg-rose-500/20 px-3 py-1 text-xs text-rose-100 shadow-sm">
+                      {overviewError}
                     </span>
-                    {overviewError ? <span className="text-sm text-rose-600">{overviewError}</span> : null}
-                  </div>
+                  ) : null}
                 </div>
-                <div className="grid gap-4 xl:grid-cols-7">
-                  <div className="grid gap-4 sm:grid-cols-2 xl:col-span-5 xl:grid-cols-5">
-                    <MetricCard
-                      title="Доступность"
-                      value={formatPercent(overviewUptime)}
-                      trend={overviewUptimeTrend}
-                      trendFormatter={(value) => `${value.toFixed(1)}%`}
-                    />
-                    <MetricCard
-                      title="Средняя латентность"
-                      value={formatMs(overviewSummary.latency_avg)}
-                      trend={overviewLatencyTrend}
-                    />
-                    <MetricCard
-                      title="Средний пинг"
-                      value={formatMs(overviewSummary.ping_avg)}
-                      trend={overviewPingTrend}
-                    />
-                    <MetricCard
-                      title="% успешных DNS"
-                      value={formatPercent(overviewSummary.dns_success_rate)}
-                      trend={overviewDnsTrend}
-                      trendFormatter={(value) => `${value.toFixed(1)}%`}
-                    />
-                    <MetricCard
-                      title="Средний срок SSL"
-                      value={formatDays(overviewSummary.ssl_days_left_avg)}
-                      trend={overviewSslTrend}
-                      trendFormatter={(value) => `${value.toFixed(1)} дн.`}
-                    />
-                  </div>
-                  <div className="xl:col-span-2">
-                    <TrafficLightPie data={overviewTraffic} title="Светофор (все сайты)" />
-                  </div>
+              </div>
+              <div className="mt-8 grid gap-4 xl:grid-cols-6">
+                <div className="grid gap-4 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
+                  <MetricCard
+                    title="Доступность"
+                    value={formatPercent(overviewUptime)}
+                    trend={overviewUptimeTrend}
+                    trendFormatter={(value) => `${value.toFixed(1)}%`}
+                  />
+                  <MetricCard
+                    title="Средняя латентность"
+                    value={formatMs(overviewSummary.latency_avg)}
+                    trend={overviewLatencyTrend}
+                  />
+                  <MetricCard
+                    title="Средний пинг"
+                    value={formatMs(overviewSummary.ping_avg)}
+                    trend={overviewPingTrend}
+                  />
+                  <MetricCard
+                    title="% успешных DNS"
+                    value={formatPercent(overviewSummary.dns_success_rate)}
+                    trend={overviewDnsTrend}
+                    trendFormatter={(value) => `${value.toFixed(1)}%`}
+                  />
+                  <MetricCard
+                    title="Средний срок SSL"
+                    value={formatDays(overviewSummary.ssl_days_left_avg)}
+                    trend={overviewSslTrend}
+                    trendFormatter={(value) => `${value.toFixed(1)} дн.`}
+                  />
                 </div>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-                  <div className="flex-1 overflow-x-auto">
-                    <div className="flex w-max gap-2">
-                      {sites.length > 0 ? (
-                        sites.map((site) => {
-                          const isActive = site.url === selectedSiteUrl;
-                          return (
-                            <button
-                              key={site.url}
-                              type="button"
-                              aria-pressed={isActive}
-                              onClick={() => setSelectedSiteUrl(site.url)}
-                              className={`group flex min-w-[200px] items-center gap-3 rounded-2xl border px-4 py-3 text-left shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 ${
-                                isActive
-                                  ? "border-slate-900 bg-slate-900 text-white shadow-lg"
-                                  : "border-slate-200 bg-white/70 text-slate-600 hover:border-slate-300 hover:bg-white"
-                              }`}
+                <div className="xl:col-span-2">
+                  <TrafficLightPie data={overviewTraffic} title="Светофор (все сайты)" />
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="sticky top-20 z-40">
+            <div className="rounded-[28px] border border-slate-200 bg-white/95 px-6 py-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.5)] backdrop-blur">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex-1 overflow-x-auto">
+                  <nav className="flex w-max gap-3 pr-4">
+                    {sites.length > 0 ? (
+                      sites.map((site) => {
+                        const isActive = site.url === selectedSiteUrl;
+                        return (
+                          <button
+                            key={site.url}
+                            type="button"
+                            aria-pressed={isActive}
+                            onClick={() => setSelectedSiteUrl(site.url)}
+                            className={clsx(
+                              "group relative flex min-w-[200px] items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200",
+                              isActive
+                                ? "border-slate-900 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white shadow-lg"
+                                : "border-slate-200 bg-white/80 text-slate-600 hover:border-slate-300 hover:bg-white",
+                            )}
+                          >
+                            <span
+                              className={clsx(
+                                "flex h-9 w-9 items-center justify-center rounded-2xl text-sm font-semibold",
+                                isActive ? "bg-white/15 text-white" : "bg-slate-900/5 text-slate-700",
+                              )}
                             >
-                              <span
-                                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
-                                  isActive ? "bg-white/20 text-white" : "bg-slate-900/10 text-slate-700"
-                                }`}
-                              >
-                                {getInitials(site)}
-                              </span>
-                              <div className="flex flex-col">
-                                <span className="text-sm font-semibold leading-5">{getHostname(site)}</span>
-                                <span className={`text-xs ${isActive ? "text-white/80" : "text-slate-400"}`}>{site.url}</span>
-                              </div>
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <span className="text-sm text-slate-400">Нет доступных сайтов</span>
-                      )}
+                              {getInitials(site)}
+                            </span>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold leading-5 text-current">{getHostname(site)}</span>
+                              <span className={clsx("text-xs", isActive ? "text-white/70" : "text-slate-400")}>{site.url}</span>
+                            </div>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <span className="text-sm text-slate-400">Нет доступных сайтов</span>
+                    )}
+                  </nav>
+                </div>
+                <div className="flex flex-col gap-3 text-sm text-slate-600">
+                  <div className="flex flex-wrap items-center justify-end gap-3">
+                    <div className="flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-1 py-1 shadow-inner">
+                      {TIME_RANGES.map((option) => {
+                        const isActive = option.value === timeRange;
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setTimeRange(option.value)}
+                            className={clsx(
+                              "rounded-full px-3 py-1.5 text-sm font-medium transition",
+                              isActive
+                                ? "bg-white text-slate-900 shadow"
+                                : "text-slate-500 hover:text-slate-700",
+                            )}
+                          >
+                            {option.label}
+                          </button>
+                        );
+                      })}
                     </div>
-                  </div>
-                  <div className="flex flex-col gap-3 text-sm text-slate-600">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <div className="flex items-center gap-1 rounded-full bg-slate-100 p-1">
-                        {TIME_RANGES.map((option) => {
-                          const isActive = option.value === timeRange;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() => setTimeRange(option.value)}
-                              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                                isActive ? "bg-white text-slate-900 shadow" : "text-slate-500 hover:text-slate-700"
-                              }`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <label className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 accent-slate-900"
-                          checked={autoRefreshEnabled}
-                          onChange={(event) => setAutoRefreshEnabled(event.target.checked)}
+                    <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm shadow-sm">
+                      <span className="text-xs uppercase tracking-wide text-slate-400">Авто</span>
+                      <button
+                        type="button"
+                        aria-pressed={autoRefreshEnabled}
+                        onClick={() => setAutoRefreshEnabled((prev) => !prev)}
+                        className={clsx(
+                          "relative h-6 w-11 rounded-full border transition-colors",
+                          autoRefreshEnabled
+                            ? "border-slate-900 bg-slate-900"
+                            : "border-slate-200 bg-white",
+                        )}
+                        aria-label="Переключить автообновление"
+                      >
+                        <span
+                          className={clsx(
+                            "absolute top-0.5 left-0.5 inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform",
+                            autoRefreshEnabled ? "translate-x-5" : "translate-x-0",
+                            "transform",
+                          )}
                         />
-                        Авто
-                      </label>
-                      <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm shadow-sm">
-                        <span>интервал</span>
+                      </button>
+                      <div className="flex items-center gap-1 text-xs text-slate-400">
+                        <span>каждые</span>
+
                         <input
                           type="number"
                           min={1}
@@ -596,30 +644,42 @@ export default function DashboardPage() {
                           step={1}
                           value={autoRefreshInterval}
                           onChange={(event) => setAutoRefreshInterval(clamp(Number(event.target.value) || 1, 1, 60))}
-                          className="h-7 w-16 rounded-full border border-slate-200 bg-white px-2 text-right text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+
+                          className="h-7 w-16 rounded-full border border-slate-200 bg-white px-2 text-right text-sm text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
                           aria-label="Интервал автообновления, секунд"
                         />
-                        <span>сек</span>
+                        <span>с</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleManualRefresh}
-                        className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                      >
-                        <RefreshCw className={`h-4 w-4 ${isSiteLoading || isOverviewLoading ? "animate-spin" : ""}`} />
-                        Обновить
-                      </button>
                     </div>
-                    <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-slate-400">
-                      {lastUpdated ? <span>Обновлено {lastUpdated.toLocaleTimeString()}</span> : null}
-                      {isSiteLoading || isOverviewLoading ? <span>Обновляем данные…</span> : null}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={handleManualRefresh}
+                      className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    >
+                      <RefreshCw className={clsx("h-4 w-4", isSiteLoading || isOverviewLoading ? "animate-spin" : undefined)} />
+                      Обновить
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-slate-400">
+                    {lastUpdatedLabel ? <span>Обновлено {lastUpdatedLabel}</span> : null}
+                    {isSiteLoading || isOverviewLoading ? <span>Обновляем данные…</span> : null}
+
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <section className="space-y-6">
+          <section className="space-y-5">
+            <header className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Глобальные тренды</p>
+                <h2 className="text-xl font-semibold text-slate-900">Все сайты</h2>
+              </div>
+              <p className="text-sm text-slate-500">
+                Отображение агрегированных значений по всему парку сайтов.
+              </p>
+            </header>
+
             <div className="grid gap-4 xl:grid-cols-2">
               <LatencyChart
                 data={overviewLatencySeries}
@@ -634,10 +694,12 @@ export default function DashboardPage() {
             </div>
             <TrafficLightTimeline data={overviewTrafficSeries} title="Распределение статусов (все сайты)" />
           </section>
-          <section className="space-y-6">
+
+          <section className="space-y-8 rounded-[28px] border border-slate-200 bg-white/90 px-6 py-7 shadow-sm backdrop-blur">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Выбранный сайт</span>
+                <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Выбранный сайт</span>
+
                 <h2 className="text-xl font-semibold text-slate-900">
                   {selectedSite ? getHostname(selectedSite) : "Выберите ресурс"}
                 </h2>
@@ -646,15 +708,17 @@ export default function DashboardPage() {
                 </p>
               </div>
               {selectedSite ? (
-                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium capitalize ${statusBadgeClass}`}>
 
-                  <span className="h-2 w-2 rounded-full bg-current" />
-                  {activeTrafficLight}
-                </span>
+                <div className="flex flex-col items-end gap-2 text-right">
+                  <span className={clsx("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium", statusBadgeClass)}>
+                    <span className="h-2.5 w-2.5 rounded-full bg-current" />
+                    {activeTrafficLabel}
+                  </span>
+                  <span className="text-xs text-slate-400">Последний статус: {activeTrafficLabel.toLowerCase()}</span>
+                </div>
               ) : null}
             </div>
             {error ? (
-
               <div className="rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm">{error}</div>
 
             ) : null}
@@ -733,7 +797,9 @@ export default function DashboardPage() {
               onLimitChange={setLimit}
             />
           </section>
-        </div>
+
+        </main>
+
       </div>
       <LogDetailsDrawer
         log={selectedLog}
