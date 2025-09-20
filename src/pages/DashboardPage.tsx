@@ -186,7 +186,6 @@ export default function DashboardPage() {
     return [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   }, [logs]);
 
-
   const distribution = useMemo(() => aggregateTrafficLight(sortedLogs), [sortedLogs]);
 
   const averageLatency = useMemo(() => calcAvgLatency(sortedLogs), [sortedLogs]);

@@ -1,5 +1,14 @@
-import { memo, useMemo, type ReactNode } from "react";
-import { FixedSizeList, type ListChildComponentProps } from "react-window";
+
+import {
+  memo,
+  useCallback,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type UIEvent,
+} from "react";
+
 import type { LogRecord, TrafficLight } from "@/utils/stats";
 
 export type LogsTableFilters = {
@@ -37,26 +46,31 @@ const LIMIT_OPTIONS = [100, 500, 1000];
 const GRID_TEMPLATE =
   "minmax(200px, 1.4fr) minmax(120px, 0.8fr) minmax(80px, 0.6fr) repeat(2, minmax(90px, 0.7fr)) minmax(110px, 0.8fr) minmax(90px, 0.7fr) minmax(110px, 0.7fr)";
 
+const LIST_HEIGHT = 420;
+const ROW_HEIGHT = 52;
+const OVERSCAN = 8;
+
 const HeaderCell = ({ children }: { children: ReactNode }) => (
   <div className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{children}</div>
 );
 
-type VirtualRowData = {
-  logs: LogRecord[];
+type LogRowProps = {
+  log: LogRecord;
   onRowClick: (log: LogRecord) => void;
+  style?: CSSProperties;
 };
 
-const VirtualRow = memo(function VirtualRow({ index, style, data }: ListChildComponentProps<VirtualRowData>) {
-  const log = data.logs[index];
+const LogRow = memo(function LogRow({ log, onRowClick, style }: LogRowProps) {
   return (
     <div
       style={{
-        ...style,
         display: "grid",
         gridTemplateColumns: GRID_TEMPLATE,
+        ...(style ?? {}),
       }}
       className="cursor-pointer border-b border-slate-100/70 bg-white px-4 text-xs text-slate-600 transition hover:bg-slate-50"
-      onClick={() => data.onRowClick(log)}
+      onClick={() => onRowClick(log)}
+
     >
       <div className="flex h-full items-center text-slate-500">
         {new Date(log.timestamp).toLocaleString()}
@@ -75,6 +89,75 @@ const VirtualRow = memo(function VirtualRow({ index, style, data }: ListChildCom
   );
 });
 
+const rowKey = (log: LogRecord, index: number) =>
+  `${log.timestamp ?? index}-${log.url ?? ""}-${log.http_status ?? ""}-${log.traffic_light}`;
+
+const RegularRows = memo(function RegularRows({
+  logs,
+  onRowClick,
+}: {
+  logs: LogRecord[];
+  onRowClick: (log: LogRecord) => void;
+}) {
+  return (
+    <div className="max-h-[420px] overflow-y-auto">
+      {logs.map((log, index) => (
+        <LogRow key={rowKey(log, index)} log={log} onRowClick={onRowClick} />
+      ))}
+    </div>
+  );
+});
+
+const VirtualizedRows = memo(function VirtualizedRows({
+  logs,
+  onRowClick,
+}: {
+  logs: LogRecord[];
+  onRowClick: (log: LogRecord) => void;
+}) {
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const handleScroll = useCallback((event: UIEvent<HTMLDivElement>) => {
+    setScrollTop(event.currentTarget.scrollTop);
+  }, []);
+
+  const { start, end } = useMemo(() => {
+    const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN);
+    const endIndex = Math.min(
+      logs.length,
+      Math.ceil((scrollTop + LIST_HEIGHT) / ROW_HEIGHT) + OVERSCAN,
+    );
+
+    return { start: startIndex, end: endIndex };
+  }, [logs.length, scrollTop]);
+
+  const visibleLogs = useMemo(() => logs.slice(start, end), [logs, start, end]);
+
+  return (
+    <div className="max-h-[420px] overflow-y-auto" onScroll={handleScroll}>
+      <div style={{ height: logs.length * ROW_HEIGHT, position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            top: start * ROW_HEIGHT,
+            left: 0,
+            right: 0,
+          }}
+        >
+          {visibleLogs.map((log, index) => (
+            <LogRow
+              key={rowKey(log, start + index)}
+              log={log}
+              onRowClick={onRowClick}
+              style={{ height: ROW_HEIGHT }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+});
+
 export const LogsTable = memo(function LogsTable({
   logs,
   onRowClick,
@@ -86,20 +169,6 @@ export const LogsTable = memo(function LogsTable({
 }: LogsTableProps) {
   const isVirtualized = logs.length > 1000;
 
-  const virtualizedList = useMemo(() => {
-    if (!isVirtualized) return null;
-    return (
-      <FixedSizeList
-        height={420}
-        itemCount={logs.length}
-        itemSize={52}
-        width="100%"
-        itemData={{ logs, onRowClick }}
-      >
-        {VirtualRow}
-      </FixedSizeList>
-    );
-  }, [isVirtualized, logs, onRowClick]);
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-200/60 bg-white/85 p-4 shadow-sm backdrop-blur">
@@ -196,34 +265,13 @@ export const LogsTable = memo(function LogsTable({
             <HeaderCell>DNS</HeaderCell>
             <HeaderCell>Redirects</HeaderCell>
           </div>
-          <div className="max-h-[420px] overflow-y-auto">
-            {isVirtualized ? (
-              virtualizedList
-            ) : (
-              logs.map((log) => (
-                <div
-                  key={`${log.timestamp}-${log.url ?? ""}`}
-                  className="grid cursor-pointer border-b border-slate-100/70 bg-white px-4 text-xs text-slate-600 transition hover:bg-slate-50"
-                  style={{ gridTemplateColumns: GRID_TEMPLATE }}
-                  onClick={() => onRowClick(log)}
-                >
-                  <div className="flex h-full items-center text-slate-500">
-                    {new Date(log.timestamp).toLocaleString()}
-                  </div>
-                  <div className="flex h-full items-center gap-2 capitalize">
-                    <span className={`h-2 w-2 rounded-full ${TRAFFIC_COLOR[log.traffic_light]}`} />
-                    {log.traffic_light}
-                  </div>
-                  <div className="flex h-full items-center text-slate-700">{log.http_status ?? "—"}</div>
-                  <div className="flex h-full items-center text-slate-700">{log.latency_ms ?? "—"}</div>
-                  <div className="flex h-full items-center text-slate-700">{log.ping_ms ?? "—"}</div>
-                  <div className="flex h-full items-center text-slate-700">{log.ssl_days_left ?? "—"}</div>
-                  <div className="flex h-full items-center text-slate-700">{log.dns_resolved ? "yes" : "no"}</div>
-                  <div className="flex h-full items-center text-slate-700">{log.redirects ?? "—"}</div>
-                </div>
-              ))
-            )}
-          </div>
+
+          {isVirtualized ? (
+            <VirtualizedRows logs={logs} onRowClick={onRowClick} />
+          ) : (
+            <RegularRows logs={logs} onRowClick={onRowClick} />
+          )}
+
         </div>
       </div>
     </div>
