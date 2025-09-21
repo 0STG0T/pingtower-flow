@@ -25,12 +25,15 @@ import { PingChart } from "@/components/dashboard/PingChart";
 import { TimeseriesChart } from "@/components/dashboard/TimeseriesChart";
 import { TrafficLightTimeline } from "@/components/dashboard/TrafficLightTimeline";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
 import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
+
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { Check, ChevronDown, RefreshCw } from "lucide-react";
+
 
 const API_URL = "http://localhost:8000";
 
@@ -39,12 +42,14 @@ const TIME_RANGES = [
   { value: "1m", label: "1 мин", durationMs: 60_000, groupBy: "1m" },
   { value: "10m", label: "10 мин", durationMs: 600_000, groupBy: "10m" },
   { value: "60m", label: "1 час", durationMs: 3_600_000, groupBy: "60m" },
+
   { value: "1d", label: "1 день", durationMs: 86_400_000, groupBy: "1d" },
   { value: "1w", label: "1 неделя", durationMs: 604_800_000, groupBy: "1w" },
 ] as const;
 
 const DEFAULT_LIMIT = 500;
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
+
 
 const TRAFFIC_LABELS: Record<TrafficLight, string> = {
   green: "Стабильно",
@@ -57,6 +62,7 @@ const TRAFFIC_BADGE: Record<TrafficLight, string> = {
   orange: "border-amber-200 bg-amber-50 text-amber-600",
   red: "border-rose-200 bg-rose-50 text-rose-600",
 };
+
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -79,6 +85,7 @@ const buildTrend = (series: ChartPoint[], limit = 120) => {
 type Site = {
   name: string;
   url: string;
+
 };
 
 const getInitials = (site: Site) => {
@@ -109,6 +116,7 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+
 };
 
 const formatMs = (value: number | null) => (value === null ? "—" : `${Math.round(value)} мс`);
@@ -211,6 +219,7 @@ export default function DashboardPage() {
       const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
 
       try {
+
         const [aggregateResponse, logsResponse] = await Promise.all([
           axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
             params: {
@@ -265,6 +274,7 @@ export default function DashboardPage() {
   }, [fetchSiteData]);
 
   useEffect(() => {
+
     const handleClickOutside = (event: MouseEvent) => {
       if (!sitePickerRef.current) return;
       if (!sitePickerRef.current.contains(event.target as Node)) {
@@ -510,6 +520,7 @@ export default function DashboardPage() {
                   <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 shadow-inner">
                     <span className="text-[13px] uppercase tracking-[0.25em] text-white/60">Сайтов</span>
                     <span className="text-2xl font-semibold text-white">{overviewSiteCount}</span>
+
                   </div>
                   {overviewError ? (
                     <span className="rounded-xl border border-rose-400/60 bg-rose-500/20 px-3 py-1 text-xs text-rose-100 shadow-sm">

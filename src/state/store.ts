@@ -30,99 +30,19 @@ type FlowStore = {
 
 const edgeColor = "#38bdf8";
 
-const initialNodes: FlowNode[] = [
-  {
-    id: "1",
-    type: "website",
-    position: { x: 120, y: 200 },
-    data: {
-      title: "Мониторинг pingtower.com",
-      emoji: "🌐",
-      description: "Следит за доступностью и временем ответа",
-      status: "success",
-      metadata: [
-        { label: "URL", value: "pingtower.com" },
-        { label: "Интервал", value: "60 сек" },
-      ],
-    },
-  },
-  {
-    id: "2",
-    type: "llm",
-    position: { x: 420, y: 200 },
-    data: {
-      title: "Анализ обращений",
-      emoji: "🧠",
-      description: "Определяет приоритет и формирует ответ",
-      status: "idle",
-      metadata: [
-        { label: "Модель", value: "GPT-4o" },
-        { label: "Темп", value: "0.6" },
-      ],
-    },
-  },
-  {
-    id: "3",
-    type: "messenger",
-    position: { x: 720, y: 200 },
-    data: {
-      title: "Telegram уведомления",
-      emoji: "💬",
-      description: "Оповещает ответственных в чат",
-      status: "idle",
-      metadata: [
-        { label: "Канал", value: "@pingtower-team" },
-        { label: "Формат", value: "Markdown" },
-      ],
-    },
-  },
-];
-
-const initialEdges: Edge[] = [
-  {
-    id: "1-2",
-    source: "1",
-    target: "2",
-    type: "smoothstep",
-    animated: true,
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: edgeColor,
-      width: 20,
-      height: 20,
-    },
-
-    style: { stroke: edgeColor, strokeWidth: 2 },
-  },
-  {
-    id: "2-3",
-    source: "2",
-    target: "3",
-    type: "smoothstep",
-    animated: true,
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: edgeColor,
-      width: 20,
-      height: 20,
-    },
-
-    style: { stroke: edgeColor, strokeWidth: 2 },
-  },
-];
-
 const statusOrder: NodeStatus[] = ["success", "running", "success"];
 
 export const useFlowStore = create<FlowStore>((set, get) => ({
   flowName: "PingTower Автоматизация",
-  nodes: initialNodes,
-  edges: initialEdges,
+  nodes: [],
+  edges: [],
   selectedNodeId: undefined,
   isRunning: false,
   isDirty: false,
   lastRunAt: undefined,
   lastSavedAt: Date.now(),
   lastChangeAt: Date.now(),
+
   setNodes: (updater) =>
     set((state) => ({
       nodes: updater(state.nodes),
@@ -146,22 +66,21 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       let didChange = false;
 
       const nodes = state.nodes.map((node) => {
-        if (node.id !== id) {
-          return node;
-        }
+        if (node.id !== id) return node;
 
-        const nextData = {
-          ...node.data,
-          ...data,
-        };
+        const nextData = { ...node.data, ...data };
 
         const titleChanged =
-          "title" in data && typeof data.title === "string" && data.title !== node.data.title;
+          "title" in data &&
+          typeof data.title === "string" &&
+          data.title !== node.data.title;
         const descriptionChanged =
           "description" in data && data.description !== node.data.description;
-        const statusChanged = "status" in data && data.status !== node.data.status;
+        const statusChanged =
+          "status" in data && data.status !== node.data.status;
         const otherKeysChanged = Object.keys(data).some(
-          (key) => key !== "title" && key !== "description" && key !== "status"
+          (key) =>
+            key !== "title" && key !== "description" && key !== "status"
         );
 
         if (!titleChanged && !descriptionChanged && !statusChanged && !otherKeysChanged) {
@@ -169,15 +88,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
         }
 
         didChange = true;
-        return {
-          ...node,
-          data: nextData,
-        };
+        return { ...node, data: nextData };
       });
 
-      if (!didChange) {
-        return state;
-      }
+      if (!didChange) return state;
 
       return {
         nodes,
@@ -191,9 +105,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       const normalized = name.trim();
       const nextName = normalized === "" ? "Новый сценарий" : normalized;
 
-      if (nextName === state.flowName) {
-        return state;
-      }
+      if (nextName === state.flowName) return state;
 
       return {
         flowName: nextName,

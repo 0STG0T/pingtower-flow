@@ -13,14 +13,18 @@ export type TrafficLightPieProps = {
 };
 
 export function TrafficLightPie({ data, title = "Статусы" }: TrafficLightPieProps) {
+
   const transformed = (Object.entries(data) as Array<
     [keyof TrafficLightAggregate, number]
   >).map(([key, value]) => ({
+
     name: key,
     value,
   }));
 
+
   const total = transformed.reduce<number>((sum, item) => sum + item.value, 0);
+
 
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 p-4 shadow-sm backdrop-blur">
@@ -45,7 +49,9 @@ export function TrafficLightPie({ data, title = "Статусы" }: TrafficLight
             </Pie>
             <Tooltip
               formatter={(value: number, name: string) => {
+
                 const percentage = total === 0 ? 0 : (value / total) * 100;
+
                 return [`${value} • ${percentage.toFixed(1)}%`, name];
               }}
             />

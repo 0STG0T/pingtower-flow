@@ -5,31 +5,23 @@ import { useShallow } from "zustand/react/shallow";
 import { useFlowStore } from "../state/store";
 import type { BlockVariant, NodeStatus } from "../flow/nodes/types";
 
+// 👇 простой API-клиент
+async function createSite(url: string, name: string) {
+  const res = await fetch("http://localhost:8000/sites", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url, name }),
+  });
+
+  if (!res.ok) throw new Error("Ошибка при создании сайта");
+  return res.json() as Promise<{ id: number; url: string; name: string }>;
+}
+
 const statusOptions: { value: NodeStatus; label: string; className: string }[] = [
-  {
-    value: "idle",
-    label: "Ожидание",
-    className:
-      "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-600",
-  },
-  {
-    value: "running",
-    label: "Выполняется",
-    className:
-      "border-amber-200 bg-amber-50 text-amber-600 hover:border-amber-300 hover:text-amber-700",
-  },
-  {
-    value: "success",
-    label: "Готово",
-    className:
-      "border-emerald-200 bg-emerald-50 text-emerald-600 hover:border-emerald-300 hover:text-emerald-700",
-  },
-  {
-    value: "error",
-    label: "Ошибка",
-    className:
-      "border-rose-200 bg-rose-50 text-rose-600 hover:border-rose-300 hover:text-rose-700",
-  },
+  { value: "idle", label: "Ожидание", className: "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-600" },
+  { value: "running", label: "Выполняется", className: "border-amber-200 bg-amber-50 text-amber-600 hover:border-amber-300 hover:text-amber-700" },
+  { value: "success", label: "Готово", className: "border-emerald-200 bg-emerald-50 text-emerald-600 hover:border-emerald-300 hover:text-emerald-700" },
+  { value: "error", label: "Ошибка", className: "border-rose-200 bg-rose-50 text-rose-600 hover:border-rose-300 hover:text-rose-700" },
 ];
 
 const typeLabels: Record<BlockVariant, string> = {
@@ -47,7 +39,6 @@ export default function Inspector() {
     }))
   );
 
-
   const node = useMemo(
     () => nodes.find((candidate) => candidate.id === selectedNodeId),
     [nodes, selectedNodeId]
@@ -61,24 +52,10 @@ export default function Inspector() {
 
   useEffect(() => {
     if (!node) return;
-
-    setForm((previous) => {
-      const next = {
-        title: node.data.title ?? "",
-        description: node.data.description ?? "",
-        status: node.data.status ?? "idle",
-      };
-
-      if (
-        previous.title === next.title &&
-        previous.description === next.description &&
-        previous.status === next.status
-      ) {
-        return previous;
-      }
-
-      return next;
-
+    setForm({
+      title: node.data.title ?? "",
+      description: node.data.description ?? "",
+      status: node.data.status ?? "idle",
     });
   }, [node]);
 
@@ -89,21 +66,15 @@ export default function Inspector() {
       const value = event.target.value;
       setForm((prev) => ({ ...prev, [field]: value }));
       if (node) {
-
-        const current = node.data[field] ?? "";
-        if (current === value) {
-          return;
+        if (node.data[field] !== value) {
+          updateNodeData(node.id, { [field]: value });
         }
-
-        updateNodeData(node.id, { [field]: value });
-
       }
     };
 
   const handleStatusChange = (status: NodeStatus) => {
     setForm((prev) => ({ ...prev, status }));
     if (node && node.data.status !== status) {
-
       updateNodeData(node.id, { status });
     }
   };
@@ -132,24 +103,20 @@ export default function Inspector() {
       </div>
 
       <div className="mt-5 space-y-5">
+        {/* Название */}
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="node-title">
-            Название
-          </label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Название</label>
           <input
-            id="node-title"
             value={form.title}
             onChange={handleChange("title")}
             className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
           />
         </div>
 
+        {/* Описание */}
         <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="node-description">
-            Описание
-          </label>
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Описание</label>
           <textarea
-            id="node-description"
             value={form.description}
             onChange={handleChange("description")}
             rows={3}
@@ -157,6 +124,7 @@ export default function Inspector() {
           />
         </div>
 
+        {/* Статус */}
         <div className="space-y-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Статус</span>
           <div className="grid grid-cols-2 gap-2">
@@ -177,6 +145,37 @@ export default function Inspector() {
           </div>
         </div>
 
+        {/* URL для website */}
+        {node.type === "website" && (
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">URL сайта</label>
+            <input
+              defaultValue={node.data.metadata.find((m) => m.label === "URL")?.value ?? ""}
+              onBlur={async (e) => {
+                const url = e.target.value.trim();
+                if (!url) return;
+
+                // обновляем локальные метаданные
+                updateNodeData(node.id, {
+                  metadata: [
+                    ...node.data.metadata.filter((m) => m.label !== "URL"),
+                    { label: "URL", value: url },
+                  ],
+                });
+
+                try {
+                  const site = await createSite(url, new URL(url).hostname);
+                  updateNodeData(node.id, { siteId: site.id });
+                } catch (err) {
+                  console.error("Не удалось сохранить сайт", err);
+                }
+              }}
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
+            />
+          </div>
+        )}
+
+        {/* Метаданные read-only */}
         {node.data.metadata && node.data.metadata.length > 0 && (
           <div className="space-y-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">Метаданные</span>
@@ -194,6 +193,7 @@ export default function Inspector() {
           </div>
         )}
 
+        {/* Служебка */}
         <div className="space-y-1 text-xs text-slate-400">
           <div className="flex items-center justify-between">
             <span>ID блока</span>
