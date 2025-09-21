@@ -3,7 +3,15 @@ import clsx from "clsx";
 import { useShallow } from "zustand/react/shallow";
 
 import { useFlowStore } from "../state/store";
-import { DEFAULT_PING_INTERVAL, type BlockVariant, type NodeStatus } from "../flow/nodes/types";
+import {
+  DEFAULT_PING_INTERVAL,
+  MAX_PING_INTERVAL,
+  MIN_PING_INTERVAL,
+  normalizePingInterval,
+  type BlockVariant,
+  type NodeStatus,
+} from "../flow/nodes/types";
+
 
 const statusOptions: { value: NodeStatus; label: string; className: string }[] = [
   { value: "idle", label: "Ожидание", className: "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-600" },
@@ -90,11 +98,10 @@ export default function Inspector() {
     if (!node) return;
     if (raw.trim() === "") return;
 
-    const numeric = Number(raw);
-    if (Number.isNaN(numeric)) return;
 
-    const normalized = Math.round(numeric);
-    if (normalized <= 0) return;
+    const normalized = normalizePingInterval(raw);
+    if (!normalized) return;
+
 
     if (node.data.ping_interval !== normalized) {
       updateNodeData(node.id, { ping_interval: normalized });
@@ -112,19 +119,21 @@ export default function Inspector() {
       return;
     }
 
-    const numeric = Number(raw);
-    if (Number.isNaN(numeric) || numeric <= 0) {
+    const normalized = normalizePingInterval(raw);
+    if (!normalized) {
+
       setForm((prev) => ({ ...prev, ping_interval: String(fallback) }));
       return;
     }
 
-    const clamped = Math.min(3600, Math.max(1, Math.round(numeric)));
-    if (String(clamped) !== form.ping_interval) {
-      setForm((prev) => ({ ...prev, ping_interval: String(clamped) }));
+
+    if (String(normalized) !== form.ping_interval) {
+      setForm((prev) => ({ ...prev, ping_interval: String(normalized) }));
     }
 
-    if (node.data.ping_interval !== clamped) {
-      updateNodeData(node.id, { ping_interval: clamped });
+    if (node.data.ping_interval !== normalized) {
+      updateNodeData(node.id, { ping_interval: normalized });
+
     }
   };
 
@@ -193,8 +202,10 @@ export default function Inspector() {
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Интервал опроса (сек)</label>
               <input
                 type="number"
-                min={1}
-                max={3600}
+
+                min={MIN_PING_INTERVAL}
+                max={MAX_PING_INTERVAL}
+
                 value={form.ping_interval}
                 onChange={handlePingIntervalChange}
                 onBlur={handlePingIntervalBlur}

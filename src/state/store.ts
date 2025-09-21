@@ -5,9 +5,12 @@ import {
   type FlowNode,
   buildWebsiteMetadata,
   DEFAULT_PING_INTERVAL,
+
+  MAX_PING_INTERVAL,
+  MIN_PING_INTERVAL,
+  normalizePingInterval,
 } from "../flow/nodes/types";
 import type { Edge, XYPosition } from "reactflow";
-
 
 export type NodeStatus = "idle" | "running" | "success" | "error";
 
@@ -99,12 +102,45 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   },
 
   createWebsiteNode: async (position, template) => {
-    const defaultUrl = "https://google.com";
-    const defaultName = "Google";
+    if (typeof window === "undefined") return;
+
+    const defaultUrl = template.description?.trim() || "https://example.com";
+    const defaultName = template.title?.trim() || "Новый сайт";
     const defaultInterval = template.ping_interval ?? DEFAULT_PING_INTERVAL;
 
+    const urlInput = window.prompt("Введите URL сайта", defaultUrl);
+    if (urlInput === null) return;
+    const url = urlInput.trim();
+    if (!url) {
+      window.alert("URL не может быть пустым");
+      return;
+    }
+
+    const nameInput = window.prompt("Введите название сайта", defaultName);
+    if (nameInput === null) return;
+    const name = nameInput.trim();
+    if (!name) {
+      window.alert("Название не может быть пустым");
+      return;
+    }
+
+    const intervalInput = window.prompt(
+      "Введите интервал опроса (сек)",
+      String(defaultInterval)
+    );
+    if (intervalInput === null) return;
+
+    const normalizedInterval = normalizePingInterval(intervalInput);
+    if (!normalizedInterval) {
+      window.alert(
+        `Интервал должен быть положительным числом от ${MIN_PING_INTERVAL} до ${MAX_PING_INTERVAL}`
+      );
+      return;
+    }
+
     try {
-      const saved = await createSite(defaultUrl, defaultName, defaultInterval);
+      const saved = await createSite(url, name, normalizedInterval);
+
 
       const node: FlowNode = {
         id: String(saved.id),
@@ -115,11 +151,13 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
           status: template.status ?? "idle",
           title: saved.name,
           description: saved.url,
-          ping_interval: saved.ping_interval ?? defaultInterval,
+
+          ping_interval: saved.ping_interval ?? normalizedInterval,
           metadata: buildWebsiteMetadata({
             title: saved.name,
             description: saved.url,
-            ping_interval: saved.ping_interval ?? defaultInterval,
+            ping_interval: saved.ping_interval ?? normalizedInterval,
+
           }),
         },
       };

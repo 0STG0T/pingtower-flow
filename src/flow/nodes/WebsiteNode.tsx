@@ -2,20 +2,23 @@ import { type MouseEventHandler } from "react";
 import { NodeToolbar, type NodeProps } from "reactflow";
 import { useFlowStore } from "../../state/store";
 import BaseBlock from "./BaseBlock";
-import { buildWebsiteMetadata, DEFAULT_PING_INTERVAL, type BaseNodeData } from "./types";
 
-function normalizeInterval(value: string) {
-  const numeric = Number(value.trim());
-  if (!Number.isFinite(numeric)) return undefined;
-  if (numeric <= 0) return undefined;
-  return Math.min(3600, Math.max(1, Math.round(numeric)));
-}
+import {
+  buildWebsiteMetadata,
+  DEFAULT_PING_INTERVAL,
+  MAX_PING_INTERVAL,
+  MIN_PING_INTERVAL,
+  normalizePingInterval,
+  type BaseNodeData,
+} from "./types";
 
 export default function WebsiteNode(props: NodeProps<BaseNodeData>) {
   const { data, id, selected } = props;
 
   const setSelectedNode = useFlowStore((state) => state.setSelectedNode);
   const updateNodeData = useFlowStore((state) => state.updateNodeData);
+  const deleteSiteNode = useFlowStore((state) => state.deleteSiteNode);
+  const removeNode = useFlowStore((state) => state.removeNode);
 
   const metadata = data.metadata ?? buildWebsiteMetadata(data);
 
@@ -44,9 +47,11 @@ export default function WebsiteNode(props: NodeProps<BaseNodeData>) {
     );
     if (nextIntervalRaw === null) return;
 
-    const normalizedInterval = normalizeInterval(nextIntervalRaw);
+    const normalizedInterval = normalizePingInterval(nextIntervalRaw);
     if (!normalizedInterval) {
-      window.alert("Интервал должен быть положительным числом от 1 до 3600");
+      window.alert(
+        `Интервал должен быть положительным числом от ${MIN_PING_INTERVAL} до ${MAX_PING_INTERVAL}`
+      );
       return;
     }
 
@@ -66,17 +71,42 @@ export default function WebsiteNode(props: NodeProps<BaseNodeData>) {
     }
   };
 
+  const handleDeleteClick: MouseEventHandler<HTMLButtonElement> = (event) => {
+    event.stopPropagation();
+    setSelectedNode(undefined);
+
+    const state = useFlowStore.getState();
+    const current = state.nodes.find((node) => node.id === id);
+    if (!current || current.type !== "website") return;
+
+    if (current.id.startsWith("temp-")) {
+      removeNode(current.id);
+      return;
+    }
+
+    void deleteSiteNode(current.id, Number(current.id));
+  };
 
   return (
     <>
       <NodeToolbar isVisible={selected} position="top">
-        <button
-          type="button"
-          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-sky-300 hover:text-sky-600"
-          onClick={handleEditClick}
-        >
-          ✏️ Изменить сайт
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-sky-300 hover:text-sky-600"
+            onClick={handleEditClick}
+          >
+            ✏️ Изменить
+          </button>
+          <button
+            type="button"
+            className="rounded-full border border-rose-200 bg-white px-3 py-1 text-xs font-semibold text-rose-600 shadow-sm transition hover:border-rose-300 hover:text-rose-600"
+            onClick={handleDeleteClick}
+          >
+            🗑 Удалить
+          </button>
+        </div>
+
       </NodeToolbar>
       <BaseBlock {...props} variant="website" data={{ ...data, metadata }} />
     </>

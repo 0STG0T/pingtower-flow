@@ -14,6 +14,9 @@ export type NodeMetadataEntry = {
 
 // Базовые данные ноды
 export const DEFAULT_PING_INTERVAL = 30;
+export const MIN_PING_INTERVAL = 1;
+export const MAX_PING_INTERVAL = 3600;
+
 
 export type BaseNodeData = {
   title?: string;
@@ -23,6 +26,13 @@ export type BaseNodeData = {
   metadata?: NodeMetadataEntry[];
   ping_interval?: number;
 };
+
+export function normalizePingInterval(value: string): number | undefined {
+  const numeric = Number(value.trim());
+  if (!Number.isFinite(numeric)) return undefined;
+  if (numeric <= 0) return undefined;
+  return Math.min(MAX_PING_INTERVAL, Math.max(MIN_PING_INTERVAL, Math.round(numeric)));
+}
 
 export function buildWebsiteMetadata(data: BaseNodeData): NodeMetadataEntry[] {
   const interval = data.ping_interval ?? DEFAULT_PING_INTERVAL;
