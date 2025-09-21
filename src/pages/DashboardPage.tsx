@@ -3,17 +3,15 @@ import axios, { CanceledError } from "axios";
 import clsx from "clsx";
 import {
   aggregateTrafficLight,
-  buildAggregatedTimeseries,
+  buildTimeseries,
   buildTrafficLightTimeseries,
+  calcAvgLatency,
+  calcAvgPing,
   calcDnsSuccessRate,
   calcUptime,
   countIncidents,
   getSparklineSeries,
-  mergeTrafficLightAggregates,
   minSslDays,
-  summarizeAggregatedBuckets,
-  type AggregatedBucket,
-  type AggregatedDashboardResponse,
   type ChartPoint,
   type LogRecord,
   type TrafficLight,
@@ -25,31 +23,27 @@ import { PingChart } from "@/components/dashboard/PingChart";
 import { TimeseriesChart } from "@/components/dashboard/TimeseriesChart";
 import { TrafficLightTimeline } from "@/components/dashboard/TrafficLightTimeline";
 import {
-
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
 import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
-
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { Check, ChevronDown, RefreshCw } from "lucide-react";
-
 
 const API_URL = "http://localhost:8000";
 
 const TIME_RANGES = [
-  { value: "1s", label: "1 сек", durationMs: 1_000, groupBy: "1s" },
-  { value: "1m", label: "1 мин", durationMs: 60_000, groupBy: "1m" },
-  { value: "10m", label: "10 мин", durationMs: 600_000, groupBy: "10m" },
-  { value: "60m", label: "1 час", durationMs: 3_600_000, groupBy: "60m" },
-
-  { value: "1d", label: "1 день", durationMs: 86_400_000, groupBy: "1d" },
-  { value: "1w", label: "1 неделя", durationMs: 604_800_000, groupBy: "1w" },
+  { value: "1s", label: "1 сек", durationMs: 1_000 },
+  { value: "1m", label: "1 мин", durationMs: 60_000 },
+  { value: "10m", label: "10 мин", durationMs: 600_000 },
+  { value: "60m", label: "1 час", durationMs: 3_600_000 },
+  { value: "1d", label: "1 день", durationMs: 86_400_000 },
+  { value: "1w", label: "1 неделя", durationMs: 604_800_000 },
 ] as const;
 
+const OVERVIEW_LIMIT = 2000;
 const DEFAULT_LIMIT = 500;
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
-
 
 const TRAFFIC_LABELS: Record<TrafficLight, string> = {
   green: "Стабильно",
@@ -66,17 +60,6 @@ const TRAFFIC_BADGE: Record<TrafficLight, string> = {
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
-const isAggregatedBucket = (value: unknown): value is AggregatedBucket => {
-  return !!value && typeof value === "object" && "count" in value && "traffic_light" in value;
-};
-
-const aggregatedTooltip = (label: string, unit = "", digits = 0) => (meta: unknown, value: number) => {
-  const bucket = isAggregatedBucket(meta) ? meta : null;
-  const formatted = `${value.toFixed(digits)}${unit ? ` ${unit}` : ""}`;
-  const checks = bucket ? `\nПроверок: ${bucket.count}` : "";
-  return `${label}: ${formatted}${checks}`;
-};
-
 const buildTrend = (series: ChartPoint[], limit = 120) => {
   return series.slice(-limit).map((point) => ({ timestamp: point.timestamp, value: point.value }));
 };
@@ -85,7 +68,6 @@ const buildTrend = (series: ChartPoint[], limit = 120) => {
 type Site = {
   name: string;
   url: string;
-
 };
 
 const getInitials = (site: Site) => {
@@ -116,7 +98,6 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
-
 };
 
 const formatMs = (value: number | null) => (value === null ? "—" : `${Math.round(value)} мс`);
@@ -125,17 +106,13 @@ const formatPercent = (value: number | null, digits = 1) =>
 const formatDays = (value: number | null, digits = 1) =>
   value === null ? "—" : `${value.toFixed(digits)} дн.`;
 
-
-// ...все твои импорты остаются
-
 export default function DashboardPage() {
   // --- state (без изменений)
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
   const [logs, setLogs] = useState<LogRecord[]>([]);
-  const [overview, setOverview] = useState<AggregatedDashboardResponse | null>(null);
-  const [siteAggregate, setSiteAggregate] = useState<AggregatedDashboardResponse | null>(null);
+  const [overviewLogs, setOverviewLogs] = useState<LogRecord[]>([]);
   const [isOverviewLoading, setIsOverviewLoading] = useState(false);
   const [isSiteLoading, setIsSiteLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
@@ -150,93 +127,165 @@ export default function DashboardPage() {
   const [selectedLog, setSelectedLog] = useState<LogRecord | null>(null);
   const [sitePickerOpen, setSitePickerOpen] = useState(false);
   const sitePickerRef = useRef<HTMLDivElement | null>(null);
-
   const timeRangeConfig = useMemo(
     () => TIME_RANGES.find((option) => option.value === timeRange) ?? TIME_RANGES[1],
     [timeRange],
   );
 
-  // --- загрузка списка сайтов
   useEffect(() => {
     let isMounted = true;
-    axios.get<Site[]>(`${API_URL}/sites`)
-      .then((res) => {
+    const loadSites = async () => {
+      try {
+        const response = await axios.get<Site[]>(`${API_URL}/sites`);
         if (!isMounted) return;
-        setSites(res.data);
-        if (res.data.length > 0) {
-          setSelectedSiteUrl((cur) => cur || res.data[0].url);
+        setSites(response.data);
+        if (response.data.length > 0) {
+          setSelectedSiteUrl((current) => current || response.data[0].url);
         }
-      })
-      .catch(() => {
-        if (isMounted) setOverviewError("Не удалось загрузить список сайтов");
-      });
-    return () => { isMounted = false; };
+      } catch (err) {
+        console.error("Failed to load sites", err);
+        if (isMounted) {
+          setOverviewError("Не удалось загрузить список сайтов");
+        }
+      }
+    };
+
+    loadSites();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // --- общая загрузка overview + site
-  const loadData = useCallback(async (signal?: AbortSignal) => {
-    const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
-
-    // Overview
-    setIsOverviewLoading(true);
-    try {
-      const res = await axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
-        params: { since, group_by: timeRangeConfig.groupBy },
-        signal,
-      });
-      if (!signal?.aborted) setOverview(res.data);
-    } catch (err) {
-      if (!(err instanceof CanceledError) && !signal?.aborted) {
+  const fetchOverviewData = useCallback(
+    async (signal?: AbortSignal) => {
+      setIsOverviewLoading(true);
+      const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+      try {
+        const response = await axios.get<LogRecord[]>(`${API_URL}/logs`, {
+          params: {
+            since,
+            limit: OVERVIEW_LIMIT,
+          },
+          signal,
+        });
+        if (signal?.aborted) return;
+        const payload = Array.isArray(response.data) ? response.data : [];
+        setOverviewLogs(payload);
+        setOverviewError(null);
+      } catch (err) {
+        if (err instanceof CanceledError || signal?.aborted) {
+          return;
+        }
+        console.error("Failed to load overview", err);
         setOverviewError("Не удалось загрузить общую статистику");
+      } finally {
+        if (!signal?.aborted) {
+          setIsOverviewLoading(false);
+        }
       }
-    } finally {
-      if (!signal?.aborted) setIsOverviewLoading(false);
-    }
+    },
+    [timeRangeConfig.durationMs],
+  );
 
-    // Site
-    if (!selectedSiteUrl) return;
-    setIsSiteLoading(true);
-    try {
-      const [agg, logsRes] = await Promise.all([
-        axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
-          params: { since, group_by: timeRangeConfig.groupBy, url: selectedSiteUrl },
+  const fetchSiteData = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!selectedSiteUrl) {
+        setLogs([]);
+        setError(null);
+        return;
+      }
+
+      setIsSiteLoading(true);
+      const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
+      try {
+        const response = await axios.get<LogRecord[]>(`${API_URL}/logs`, {
+          params: {
+            url: selectedSiteUrl,
+            limit,
+            since,
+          },
           signal,
-        }),
-        axios.get<LogRecord[]>(`${API_URL}/logs`, {
-          params: { url: selectedSiteUrl, limit, since },
-          signal,
-        }),
-      ]);
-      if (!signal?.aborted) {
-        setSiteAggregate(agg.data);
-        setLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
+        });
+
+        if (signal?.aborted) return;
+
+        const payload = Array.isArray(response.data) ? response.data : [];
+        setLogs(payload);
         setError(null);
         setLastUpdated(new Date());
-      }
-    } catch (err) {
-      if (!(err instanceof CanceledError) && !signal?.aborted) {
+      } catch (err) {
+        if (err instanceof CanceledError || signal?.aborted) {
+          return;
+        }
+        console.error("Failed to load site dashboard", err);
         setError("Не удалось загрузить данные сайта");
+      } finally {
+        if (!signal?.aborted) {
+          setIsSiteLoading(false);
+        }
       }
-    } finally {
-      if (!signal?.aborted) setIsSiteLoading(false);
-    }
-  }, [timeRangeConfig, selectedSiteUrl, limit]);
+    },
+    [limit, selectedSiteUrl, timeRangeConfig.durationMs],
+  );
 
-  // --- запуск загрузки
   useEffect(() => {
     const controller = new AbortController();
-    loadData(controller.signal);
+    fetchOverviewData(controller.signal);
     return () => controller.abort();
-  }, [loadData]);
+  }, [fetchOverviewData]);
 
-  // --- автообновление
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchSiteData(controller.signal);
+    return () => controller.abort();
+  }, [fetchSiteData]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!sitePickerRef.current) return;
+      if (!sitePickerRef.current.contains(event.target as Node)) {
+        setSitePickerOpen(false);
+      }
+      return next;
+    });
+  }, []);
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSitePickerOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
   useEffect(() => {
     if (!autoRefreshEnabled) return;
-    const id = setInterval(() => loadData(), clamp(autoRefreshInterval, 1, 60) * 1000);
-    return () => clearInterval(id);
-  }, [autoRefreshEnabled, autoRefreshInterval, loadData]);
+    const intervalId = window.setInterval(() => {
+      fetchOverviewData();
+      fetchSiteData();
+    }, clamp(autoRefreshInterval, 1, 60) * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [autoRefreshEnabled, autoRefreshInterval, fetchOverviewData, fetchSiteData]);
 
-  const handleManualRefresh = useCallback(() => { loadData(); }, [loadData]);
+  const handleManualRefresh = useCallback(() => {
+    fetchOverviewData();
+    fetchSiteData();
+  }, [fetchOverviewData, fetchSiteData]);
+
+  const sortedOverviewLogs = useMemo(
+    () =>
+      [...overviewLogs].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      ),
+    [overviewLogs],
+  );
 
   const sortedLogs = useMemo(
     () => [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
@@ -283,83 +332,80 @@ export default function DashboardPage() {
     setSitePickerOpen(false);
   }, [selectedSiteUrl]);
 
-  const overviewBuckets = useMemo<AggregatedBucket[]>(() => overview?.buckets ?? [], [overview]);
-  const overviewSummary = overview?.summary ?? summarizeAggregatedBuckets(overviewBuckets);
-  const overviewTraffic = overview?.summary?.traffic_light ?? mergeTrafficLightAggregates(overviewBuckets);
-
   const overviewLatencySeries = useMemo(
-    () => buildAggregatedTimeseries(overviewBuckets, "latency_avg"),
-    [overviewBuckets],
+    () => buildTimeseries(sortedOverviewLogs, "latency_ms"),
+    [sortedOverviewLogs],
   );
   const overviewPingSeries = useMemo(
-    () => buildAggregatedTimeseries(overviewBuckets, "ping_avg"),
-    [overviewBuckets],
+    () => buildTimeseries(sortedOverviewLogs, "ping_ms"),
+    [sortedOverviewLogs],
   );
   const overviewDnsSeries = useMemo(
-    () => buildAggregatedTimeseries(overviewBuckets, "dns_success_rate"),
-    [overviewBuckets],
+    () => buildTimeseries(sortedOverviewLogs, "dns_success_rate"),
+    [sortedOverviewLogs],
   );
   const overviewSslSeries = useMemo(
-    () => buildAggregatedTimeseries(overviewBuckets, "ssl_days_left_avg"),
-    [overviewBuckets],
+    () => buildTimeseries(sortedOverviewLogs, "ssl_days_left"),
+    [sortedOverviewLogs],
   );
   const overviewTrafficSeries = useMemo(
-    () => buildTrafficLightTimeseries(overviewBuckets),
-    [overviewBuckets],
+    () => buildTrafficLightTimeseries(sortedOverviewLogs),
+    [sortedOverviewLogs],
   );
 
-  const overviewUptime = useMemo(() => {
-    const total = overviewTraffic.green + overviewTraffic.orange + overviewTraffic.red;
-    if (total === 0) return null;
-    return Number(((overviewTraffic.green / total) * 100).toFixed(1));
-  }, [overviewTraffic]);
+  const overviewTraffic = useMemo(
+    () => aggregateTrafficLight(sortedOverviewLogs),
+    [sortedOverviewLogs],
+  );
+  const overviewUptime = useMemo(() => calcUptime(sortedOverviewLogs), [sortedOverviewLogs]);
 
   const overviewUptimeTrend = useMemo<{ timestamp: number; value: number }[]>(() => {
-    return overviewBuckets
-      .map<{ timestamp: number; value: number } | null>((bucket) => {
-        const total =
-          bucket.traffic_light.green + bucket.traffic_light.orange + bucket.traffic_light.red;
-        if (total === 0) return null;
+    return overviewTrafficSeries
+      .map<{ timestamp: number; value: number } | null>((point) => {
+        const { total } = point;
+        if (!total) return null;
         return {
-          timestamp: new Date(bucket.timestamp).getTime(),
-          value: Number(((bucket.traffic_light.green / total) * 100).toFixed(1)),
+          timestamp: point.timestamp,
+          value: Number(((point.green / total) * 100).toFixed(1)),
         };
       })
       .filter((value): value is { timestamp: number; value: number } => value !== null);
-  }, [overviewBuckets]);
+  }, [overviewTrafficSeries]);
 
   const overviewLatencyTrend = useMemo(() => buildTrend(overviewLatencySeries), [overviewLatencySeries]);
   const overviewPingTrend = useMemo(() => buildTrend(overviewPingSeries), [overviewPingSeries]);
   const overviewDnsTrend = useMemo(() => buildTrend(overviewDnsSeries), [overviewDnsSeries]);
   const overviewSslTrend = useMemo(() => buildTrend(overviewSslSeries), [overviewSslSeries]);
 
-  const siteBuckets = useMemo<AggregatedBucket[]>(() => siteAggregate?.buckets ?? [], [siteAggregate]);
-  const siteSummary = siteAggregate?.summary ?? summarizeAggregatedBuckets(siteBuckets);
-  const siteTrafficRaw = siteAggregate?.summary?.traffic_light ?? mergeTrafficLightAggregates(siteBuckets);
-  const siteTrafficFallback = useMemo(() => aggregateTrafficLight(sortedLogs), [sortedLogs]);
-  const siteTraffic = useMemo(() => {
-    const total = siteTrafficRaw.green + siteTrafficRaw.orange + siteTrafficRaw.red;
-    if (total === 0 && sortedLogs.length > 0) {
-      return siteTrafficFallback;
-    }
-    return siteTrafficRaw;
-  }, [siteTrafficFallback, siteTrafficRaw, sortedLogs.length]);
+  const overviewLatencyAvg = useMemo(() => calcAvgLatency(sortedOverviewLogs), [sortedOverviewLogs]);
+  const overviewPingAvg = useMemo(() => calcAvgPing(sortedOverviewLogs), [sortedOverviewLogs]);
+  const overviewDnsSuccess = useMemo(
+    () => calcDnsSuccessRate(sortedOverviewLogs),
+    [sortedOverviewLogs],
+  );
+  const overviewSslDaysLeft = useMemo(() => minSslDays(sortedOverviewLogs), [sortedOverviewLogs]);
 
-  const siteLatencySeries = useMemo(
-    () => buildAggregatedTimeseries(siteBuckets, "latency_avg"),
-    [siteBuckets],
+  const overviewSummary = useMemo(
+    () => ({
+      latency_avg: overviewLatencyAvg,
+      ping_avg: overviewPingAvg,
+      dns_success_rate: overviewDnsSuccess,
+      ssl_days_left_avg: overviewSslDaysLeft,
+    }),
+    [overviewDnsSuccess, overviewLatencyAvg, overviewPingAvg, overviewSslDaysLeft],
   );
-  const sitePingSeries = useMemo(
-    () => buildAggregatedTimeseries(siteBuckets, "ping_avg"),
-    [siteBuckets],
-  );
+
+  const siteTraffic = useMemo(() => aggregateTrafficLight(sortedLogs), [sortedLogs]);
+
+  const siteLatencySeries = useMemo(() => buildTimeseries(sortedLogs, "latency_ms"), [sortedLogs]);
+  const sitePingSeries = useMemo(() => buildTimeseries(sortedLogs, "ping_ms"), [sortedLogs]);
   const siteDnsSeries = useMemo(
-    () => buildAggregatedTimeseries(siteBuckets, "dns_success_rate"),
-    [siteBuckets],
+    () => buildTimeseries(sortedLogs, "dns_success_rate"),
+    [sortedLogs],
   );
   const siteSslSeries = useMemo(
-    () => buildAggregatedTimeseries(siteBuckets, "ssl_days_left_avg"),
-    [siteBuckets],
+    () => buildTimeseries(sortedLogs, "ssl_days_left"),
+    [sortedLogs],
   );
 
   const siteLatencyTrend = useMemo(() => buildTrend(siteLatencySeries), [siteLatencySeries]);
@@ -367,13 +413,13 @@ export default function DashboardPage() {
   const siteDnsTrend = useMemo(() => buildTrend(siteDnsSeries), [siteDnsSeries]);
   const siteSslTrend = useMemo(() => buildTrend(siteSslSeries), [siteSslSeries]);
 
-  const siteLatencyAvg = siteSummary.latency_avg;
-  const sitePingAvg = siteSummary.ping_avg;
-  const siteDnsSuccess = siteSummary.dns_success_rate ?? calcDnsSuccessRate(sortedLogs);
-  const siteSslAvg = siteSummary.ssl_days_left_avg;
+  const siteLatencyAvg = useMemo(() => calcAvgLatency(sortedLogs), [sortedLogs]);
+  const sitePingAvg = useMemo(() => calcAvgPing(sortedLogs), [sortedLogs]);
+  const siteDnsSuccess = useMemo(() => calcDnsSuccessRate(sortedLogs), [sortedLogs]);
+  const siteSslDaysLeft = useMemo(() => minSslDays(sortedLogs), [sortedLogs]);
   const siteChecks = sortedLogs.length;
   const uptime = useMemo(() => calcUptime(sortedLogs), [sortedLogs]);
-  const sslDaysLeftMin = useMemo(() => minSslDays(sortedLogs), [sortedLogs]);
+  const sslDaysLeftMin = siteSslDaysLeft;
   const incidentsCount = useMemo(() => countIncidents(filteredLogs), [filteredLogs]);
 
   const latencyDrawerTrend = useMemo(() => {
@@ -420,7 +466,6 @@ export default function DashboardPage() {
   const overviewSiteCount = sites.length;
   const sslAccent =
     sslDaysLeftMin === null ? "default" : sslDaysLeftMin <= 0 ? "danger" : sslDaysLeftMin < 7 ? "warning" : "default";
-
   const rangeLabel = timeRangeConfig.label;
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString() : null;
 
@@ -447,7 +492,6 @@ export default function DashboardPage() {
                   <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 shadow-inner">
                     <span className="text-[13px] uppercase tracking-[0.25em] text-white/60">Сайтов</span>
                     <span className="text-2xl font-semibold text-white">{overviewSiteCount}</span>
-
                   </div>
                   {overviewError ? (
                     <span className="rounded-xl border border-rose-400/60 bg-rose-500/20 px-3 py-1 text-xs text-rose-100 shadow-sm">
@@ -493,32 +537,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </section>
-
-          <section className="space-y-5">
-            <header className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Глобальные тренды</p>
-                <h2 className="text-xl font-semibold text-slate-900">Все сайты</h2>
-              </div>
-              <p className="text-sm text-slate-500">
-                Отображение агрегированных значений по всему парку сайтов.
-              </p>
-            </header>
-            <div className="grid gap-4 xl:grid-cols-2">
-              <LatencyChart
-                data={overviewLatencySeries}
-                label="Латентность (все сайты)"
-                tooltipFormatter={aggregatedTooltip("Латентность", "мс")}
-              />
-              <PingChart
-                data={overviewPingSeries}
-                label="Пинг (все сайты)"
-                tooltipFormatter={aggregatedTooltip("Пинг", "мс")}
-              />
-            </div>
-            <TrafficLightTimeline data={overviewTrafficSeries} title="Распределение статусов (все сайты)" />
-          </section>
-
           <div className="relative z-30">
             <div className="rounded-[28px] border border-slate-200 bg-white/95 px-6 py-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.5)] backdrop-blur">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -687,6 +705,29 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          <section className="space-y-5">
+            <header className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Глобальные тренды</p>
+                <h2 className="text-xl font-semibold text-slate-900">Все сайты</h2>
+              </div>
+              <p className="text-sm text-slate-500">
+                Отображение агрегированных значений по всему парку сайтов.
+              </p>
+            </header>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <LatencyChart
+                data={overviewLatencySeries}
+                label="Латентность (все сайты)"
+              />
+              <PingChart
+                data={overviewPingSeries}
+                label="Пинг (все сайты)"
+              />
+            </div>
+            <TrafficLightTimeline data={overviewTrafficSeries} title="Распределение статусов (все сайты)" />
+          </section>
+
           <section className="space-y-8 rounded-[28px] border border-slate-200 bg-white/90 px-6 py-7 shadow-sm backdrop-blur">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
@@ -732,7 +773,7 @@ export default function DashboardPage() {
                 />
                 <MetricCard
                   title="Средний срок SSL"
-                  value={formatDays(siteSslAvg)}
+                  value={formatDays(siteSslDaysLeft)}
                   trend={siteSslTrend}
                   trendFormatter={(value: number) => `${value.toFixed(1)} дн.`}
                   accent={sslAccent}
@@ -745,12 +786,10 @@ export default function DashboardPage() {
               <LatencyChart
                 data={siteLatencySeries}
                 label="Латентность сайта"
-                tooltipFormatter={aggregatedTooltip("Латентность", "мс")}
               />
               <PingChart
                 data={sitePingSeries}
                 label="Пинг сайта"
-                tooltipFormatter={aggregatedTooltip("Пинг", "мс")}
               />
             </div>
             <div className="grid gap-4 xl:grid-cols-4">
@@ -760,7 +799,6 @@ export default function DashboardPage() {
                   color="#0ea5e9"
                   label="SSL, дни"
                   valueFormatter={(value: number) => `${value.toFixed(1)} дн.`}
-                  tooltipFormatter={aggregatedTooltip("SSL", "дн.", 1)}
                 />
               </div>
               <TimeseriesChart
@@ -768,7 +806,6 @@ export default function DashboardPage() {
                 color="#22c55e"
                 label="DNS, %"
                 valueFormatter={(value: number) => `${value.toFixed(1)}%`}
-                tooltipFormatter={aggregatedTooltip("DNS", "%", 1)}
               />
               <TrafficLightPie data={siteTraffic} title="Светофор сайта" />
             </div>

@@ -24,5 +24,4 @@ export function LatencyChart({
       tooltipFormatter={tooltipFormatter}
     />
   );
-
 }

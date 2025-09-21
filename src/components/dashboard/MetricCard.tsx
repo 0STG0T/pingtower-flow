@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-
 export type MetricCardProps = {
   title: string;
   value: ReactNode;
@@ -11,7 +10,6 @@ export type MetricCardProps = {
   accent?: "default" | "warning" | "danger";
   compact?: boolean;
   trendFormatter?: (value: number) => string;
-
 };
 
 const ACCENTS: Record<NonNullable<MetricCardProps["accent"]>, string> = {
@@ -50,7 +48,6 @@ export function MetricCard({
                   wrapperClassName="!bg-slate-900/90 !text-white"
                   labelFormatter={(value) => new Date(value).toLocaleTimeString()}
                   formatter={(value: number) => [trendFormatter ? trendFormatter(value) : `${value.toFixed(0)} мс`, ""]}
-
                 />
                 <Line
                   type="monotone"
