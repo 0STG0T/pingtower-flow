@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import axios, { CanceledError } from "axios";
 import clsx from "clsx";
@@ -25,12 +26,15 @@ import { PingChart } from "@/components/dashboard/PingChart";
 import { TimeseriesChart } from "@/components/dashboard/TimeseriesChart";
 import { TrafficLightTimeline } from "@/components/dashboard/TrafficLightTimeline";
 import {
+
   LogsTable,
   type LogsTableFilters,
 } from "@/components/dashboard/LogsTable";
 import { LogDetailsDrawer } from "@/components/dashboard/LogDetailsDrawer";
+
 import { IncidentBanner } from "@/components/dashboard/IncidentBanner";
 import { Check, ChevronDown, RefreshCw } from "lucide-react";
+
 
 const API_URL = "http://localhost:8000";
 
@@ -39,12 +43,14 @@ const TIME_RANGES = [
   { value: "1m", label: "1 мин", durationMs: 60_000, groupBy: "1m" },
   { value: "10m", label: "10 мин", durationMs: 600_000, groupBy: "10m" },
   { value: "60m", label: "1 час", durationMs: 3_600_000, groupBy: "60m" },
+
   { value: "1d", label: "1 день", durationMs: 86_400_000, groupBy: "1d" },
   { value: "1w", label: "1 неделя", durationMs: 604_800_000, groupBy: "1w" },
 ] as const;
 
 const DEFAULT_LIMIT = 500;
 const TRAFFIC_OPTIONS: TrafficLight[] = ["green", "orange", "red"];
+
 
 const TRAFFIC_LABELS: Record<TrafficLight, string> = {
   green: "Стабильно",
@@ -57,6 +63,7 @@ const TRAFFIC_BADGE: Record<TrafficLight, string> = {
   orange: "border-amber-200 bg-amber-50 text-amber-600",
   red: "border-rose-200 bg-rose-50 text-rose-600",
 };
+
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
@@ -79,6 +86,7 @@ const buildTrend = (series: ChartPoint[], limit = 120) => {
 type Site = {
   name: string;
   url: string;
+
 };
 
 const getInitials = (site: Site) => {
@@ -109,6 +117,7 @@ const getHostname = (site: Site) => {
   } catch {
     return site.url;
   }
+
 };
 
 const formatMs = (value: number | null) => (value === null ? "—" : `${Math.round(value)} мс`);
@@ -121,6 +130,7 @@ const formatDays = (value: number | null, digits = 1) =>
 export default function DashboardPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
+
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
   const [logs, setLogs] = useState<LogRecord[]>([]);
   const [overview, setOverview] = useState<AggregatedDashboardResponse | null>(null);
@@ -128,6 +138,7 @@ export default function DashboardPage() {
   const [isOverviewLoading, setIsOverviewLoading] = useState(false);
   const [isSiteLoading, setIsSiteLoading] = useState(false);
   const [overviewError, setOverviewError] = useState<string | null>(null);
+
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
@@ -137,8 +148,10 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [limit, setLimit] = useState(DEFAULT_LIMIT);
   const [selectedLog, setSelectedLog] = useState<LogRecord | null>(null);
+
   const [sitePickerOpen, setSitePickerOpen] = useState(false);
   const sitePickerRef = useRef<HTMLDivElement | null>(null);
+
 
   const timeRangeConfig = useMemo(
     () => TIME_RANGES.find((option) => option.value === timeRange) ?? TIME_RANGES[1],
@@ -153,7 +166,9 @@ export default function DashboardPage() {
         if (!isMounted) return;
         setSites(response.data);
         if (response.data.length > 0) {
+
           setSelectedSiteUrl((current) => current || response.data[0].url);
+
         }
       } catch (err) {
         console.error("Failed to load sites", err);
@@ -184,6 +199,7 @@ export default function DashboardPage() {
         if (signal?.aborted) return;
         setOverview(response.data);
         setOverviewError(null);
+
       } catch (err) {
         if (err instanceof CanceledError || signal?.aborted) {
           return;
@@ -209,6 +225,85 @@ export default function DashboardPage() {
 
       setIsSiteLoading(true);
       const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
+      try {
+        const [aggregateResponse, logsResponse] = await Promise.all([
+          axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
+            params: {
+              since,
+              group_by: timeRangeConfig.groupBy,
+              url: selectedSiteUrl,
+            },
+            signal,
+          }),
+          axios.get<LogRecord[]>(`${API_URL}/logs`, {
+            params: {
+              url: selectedSiteUrl,
+              limit,
+              since,
+            },
+            signal,
+          }),
+        ]);
+
+        if (signal?.aborted) return;
+
+        setSiteAggregate(aggregateResponse.data);
+        const payload = Array.isArray(logsResponse.data) ? logsResponse.data : [];
+        setLogs(payload);
+        setError(null);
+        setLastUpdated(new Date());
+
+      } catch (err) {
+        if (err instanceof CanceledError || signal?.aborted) {
+          return;
+        }
+
+        console.error("Failed to load site dashboard", err);
+        setError("Не удалось загрузить данные сайта");
+      } finally {
+        if (!signal?.aborted) {
+          setIsSiteLoading(false);
+        }
+      }
+    },
+    [limit, selectedSiteUrl, timeRangeConfig.durationMs, timeRangeConfig.groupBy],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchOverviewData(controller.signal);
+    return () => controller.abort();
+  }, [fetchOverviewData]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchSiteData(controller.signal);
+    return () => controller.abort();
+  }, [fetchSiteData]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!sitePickerRef.current) return;
+      if (!sitePickerRef.current.contains(event.target as Node)) {
+        setSitePickerOpen(false);
+
+      }
+    },
+    [timeRangeConfig.durationMs, timeRangeConfig.groupBy],
+  );
+
+  const fetchSiteData = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!selectedSiteUrl) {
+        setLogs([]);
+        setSiteAggregate(null);
+        return;
+      }
+
+      setIsSiteLoading(true);
+      const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
 
       try {
         const [aggregateResponse, logsResponse] = await Promise.all([
@@ -265,12 +360,169 @@ export default function DashboardPage() {
   }, [fetchSiteData]);
 
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!sitePickerRef.current) return;
-      if (!sitePickerRef.current.contains(event.target as Node)) {
-        setSitePickerOpen(false);
+    if (!autoRefreshEnabled) return;
+    const intervalId = window.setInterval(() => {
+      fetchOverviewData();
+      fetchSiteData();
+    }, clamp(autoRefreshInterval, 1, 60) * 1000);
+    return () => window.clearInterval(intervalId);
+  }, [autoRefreshEnabled, autoRefreshInterval, fetchOverviewData, fetchSiteData]);
+
+
+  const handleManualRefresh = useCallback(() => {
+    fetchOverviewData();
+    fetchSiteData();
+  }, [fetchOverviewData, fetchSiteData]);
+
+  const sortedLogs = useMemo(
+    () => [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
+    [logs],
+  );
+
+  const filters: LogsTableFilters = useMemo(
+    () => ({
+      traffic: trafficFilter,
+      statusRange: httpStatusRange,
+      search: searchTerm,
+      limit,
+    }),
+    [trafficFilter, httpStatusRange, searchTerm, limit],
+  );
+
+  const filteredLogs = useMemo(() => {
+    return sortedLogs.filter((log) => {
+      const trafficAllowed = filters.traffic.size === 0 || filters.traffic.has(log.traffic_light as TrafficLight);
+      if (!trafficAllowed) return false;
+
+
+      const status = log.http_status;
+      const statusAllowed =
+        status === null || (status >= filters.statusRange.min && status <= filters.statusRange.max);
+      if (!statusAllowed) return false;
+
+
+      if (filters.search.trim().length > 0) {
+        const value = log.url ?? "";
+        if (!value.toLowerCase().includes(filters.search.toLowerCase())) {
+          return false;
+        }
       }
-    };
+
+      return true;
+    });
+  }, [filters, sortedLogs]);
+
+  const selectedSite = useMemo(
+    () => sites.find((site) => site.url === selectedSiteUrl) ?? null,
+    [sites, selectedSiteUrl],
+  );
+
+  const overviewBuckets = useMemo(() => overview?.buckets ?? [], [overview]);
+  const overviewSummary = overview?.summary ?? summarizeAggregatedBuckets(overviewBuckets);
+  const overviewTraffic = overview?.summary?.traffic_light ?? mergeTrafficLightAggregates(overviewBuckets);
+
+  const overviewLatencySeries = useMemo(
+    () => buildAggregatedTimeseries(overviewBuckets, "latency_avg"),
+    [overviewBuckets],
+  );
+  const overviewPingSeries = useMemo(
+    () => buildAggregatedTimeseries(overviewBuckets, "ping_avg"),
+    [overviewBuckets],
+  );
+  const overviewDnsSeries = useMemo(
+    () => buildAggregatedTimeseries(overviewBuckets, "dns_success_rate"),
+    [overviewBuckets],
+  );
+  const overviewSslSeries = useMemo(
+    () => buildAggregatedTimeseries(overviewBuckets, "ssl_days_left_avg"),
+    [overviewBuckets],
+  );
+  const overviewTrafficSeries = useMemo(
+    () => buildTrafficLightTimeseries(overviewBuckets),
+    [overviewBuckets],
+  );
+
+  const overviewUptime = useMemo(() => {
+    const total = overviewTraffic.green + overviewTraffic.orange + overviewTraffic.red;
+    if (total === 0) return null;
+    return Number(((overviewTraffic.green / total) * 100).toFixed(1));
+  }, [overviewTraffic]);
+
+  const overviewUptimeTrend = useMemo(() => {
+    return overviewBuckets
+      .map((bucket) => {
+        const total =
+          bucket.traffic_light.green + bucket.traffic_light.orange + bucket.traffic_light.red;
+        if (total === 0) return null;
+        return {
+          timestamp: new Date(bucket.timestamp).getTime(),
+          value: Number(((bucket.traffic_light.green / total) * 100).toFixed(1)),
+        };
+      })
+      .filter((value): value is { timestamp: number; value: number } => value !== null);
+  }, [overviewBuckets]);
+
+  const overviewLatencyTrend = useMemo(() => buildTrend(overviewLatencySeries), [overviewLatencySeries]);
+  const overviewPingTrend = useMemo(() => buildTrend(overviewPingSeries), [overviewPingSeries]);
+  const overviewDnsTrend = useMemo(() => buildTrend(overviewDnsSeries), [overviewDnsSeries]);
+  const overviewSslTrend = useMemo(() => buildTrend(overviewSslSeries), [overviewSslSeries]);
+
+  const siteBuckets = useMemo(() => siteAggregate?.buckets ?? [], [siteAggregate]);
+  const siteSummary = siteAggregate?.summary ?? summarizeAggregatedBuckets(siteBuckets);
+  const siteTrafficRaw = siteAggregate?.summary?.traffic_light ?? mergeTrafficLightAggregates(siteBuckets);
+  const siteTrafficFallback = useMemo(() => aggregateTrafficLight(sortedLogs), [sortedLogs]);
+  const siteTraffic = useMemo(() => {
+    const total = siteTrafficRaw.green + siteTrafficRaw.orange + siteTrafficRaw.red;
+    if (total === 0 && sortedLogs.length > 0) {
+      return siteTrafficFallback;
+    }
+    return siteTrafficRaw;
+  }, [siteTrafficFallback, siteTrafficRaw, sortedLogs.length]);
+
+  const siteLatencySeries = useMemo(
+    () => buildAggregatedTimeseries(siteBuckets, "latency_avg"),
+    [siteBuckets],
+  );
+  const sitePingSeries = useMemo(
+    () => buildAggregatedTimeseries(siteBuckets, "ping_avg"),
+    [siteBuckets],
+  );
+  const siteDnsSeries = useMemo(
+    () => buildAggregatedTimeseries(siteBuckets, "dns_success_rate"),
+    [siteBuckets],
+  );
+  const siteSslSeries = useMemo(
+    () => buildAggregatedTimeseries(siteBuckets, "ssl_days_left_avg"),
+    [siteBuckets],
+  );
+
+  const siteLatencyTrend = useMemo(() => buildTrend(siteLatencySeries), [siteLatencySeries]);
+  const sitePingTrend = useMemo(() => buildTrend(sitePingSeries), [sitePingSeries]);
+  const siteDnsTrend = useMemo(() => buildTrend(siteDnsSeries), [siteDnsSeries]);
+  const siteSslTrend = useMemo(() => buildTrend(siteSslSeries), [siteSslSeries]);
+
+  const siteLatencyAvg = siteSummary.latency_avg;
+  const sitePingAvg = siteSummary.ping_avg;
+  const siteDnsSuccess = siteSummary.dns_success_rate ?? calcDnsSuccessRate(sortedLogs);
+  const siteSslAvg = siteSummary.ssl_days_left_avg;
+  const siteChecks = sortedLogs.length;
+  const uptime = useMemo(() => calcUptime(sortedLogs), [sortedLogs]);
+  const sslDaysLeftMin = useMemo(() => minSslDays(sortedLogs), [sortedLogs]);
+  const incidentsCount = useMemo(() => countIncidents(filteredLogs), [filteredLogs]);
+
+  const latencyDrawerTrend = useMemo(() => {
+    if (!selectedLog) return [];
+    const index = sortedLogs.findIndex((log) => log.timestamp === selectedLog.timestamp);
+    const slice = index === -1 ? sortedLogs.slice(-10) : sortedLogs.slice(Math.max(0, index - 9), index + 1);
+    return getSparklineSeries(slice, "latency_ms");
+  }, [selectedLog, sortedLogs]);
+
+  const pingDrawerTrend = useMemo(() => {
+    if (!selectedLog) return [];
+    const index = sortedLogs.findIndex((log) => log.timestamp === selectedLog.timestamp);
+    const slice = index === -1 ? sortedLogs.slice(-10) : sortedLogs.slice(Math.max(0, index - 9), index + 1);
+    return getSparklineSeries(slice, "ping_ms");
+  }, [selectedLog, sortedLogs]);
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -295,6 +547,7 @@ export default function DashboardPage() {
     }, clamp(autoRefreshInterval, 1, 60) * 1000);
     return () => window.clearInterval(intervalId);
   }, [autoRefreshEnabled, autoRefreshInterval, fetchOverviewData, fetchSiteData]);
+
 
   const handleManualRefresh = useCallback(() => {
     fetchOverviewData();
@@ -490,6 +743,7 @@ export default function DashboardPage() {
   return (
     <div className="flex h-full flex-1 flex-col overflow-hidden bg-slate-100/60">
       <div className="flex-1 overflow-y-auto">
+
         <main className="mx-auto flex max-w-[1600px] flex-col gap-12 px-6 pb-16 pt-8">
           <section className="relative overflow-hidden rounded-[32px] border border-slate-200/70 bg-slate-900 text-white shadow-[0_45px_120px_-60px_rgba(15,23,42,0.85)]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.4),transparent_55%),radial-gradient(circle_at_bottom_right,rgba(129,140,248,0.35),transparent_55%)]" />
@@ -510,6 +764,7 @@ export default function DashboardPage() {
                   <div className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/10 px-4 py-2 shadow-inner">
                     <span className="text-[13px] uppercase tracking-[0.25em] text-white/60">Сайтов</span>
                     <span className="text-2xl font-semibold text-white">{overviewSiteCount}</span>
+
                   </div>
                   {overviewError ? (
                     <span className="rounded-xl border border-rose-400/60 bg-rose-500/20 px-3 py-1 text-xs text-rose-100 shadow-sm">
@@ -646,6 +901,7 @@ export default function DashboardPage() {
                       </div>
                     ) : null}
                   </div>
+
                 </div>
                 <div className="flex flex-col gap-3 text-sm text-slate-600">
                   <div className="flex flex-wrap items-center justify-end gap-3">
@@ -693,6 +949,7 @@ export default function DashboardPage() {
                       </button>
                       <div className="flex items-center gap-1 text-xs text-slate-400">
                         <span>каждые</span>
+
                         <input
                           type="number"
                           min={1}
@@ -700,6 +957,7 @@ export default function DashboardPage() {
                           step={1}
                           value={autoRefreshInterval}
                           onChange={(event) => setAutoRefreshInterval(clamp(Number(event.target.value) || 1, 1, 60))}
+
                           className="h-7 w-16 rounded-full border border-slate-200 bg-white px-2 text-right text-sm text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-200"
                           aria-label="Интервал автообновления, секунд"
                         />
@@ -718,6 +976,7 @@ export default function DashboardPage() {
                   <div className="flex flex-wrap justify-end gap-x-4 gap-y-1 text-xs text-slate-400">
                     {lastUpdatedLabel ? <span>Обновлено {lastUpdatedLabel}</span> : null}
                     {isSiteLoading || isOverviewLoading ? <span>Обновляем данные…</span> : null}
+
                   </div>
                 </div>
               </div>
@@ -734,6 +993,7 @@ export default function DashboardPage() {
                 Отображение агрегированных значений по всему парку сайтов.
               </p>
             </header>
+
             <div className="grid gap-4 xl:grid-cols-2">
               <LatencyChart
                 data={overviewLatencySeries}
@@ -753,6 +1013,7 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Выбранный сайт</span>
+
                 <h2 className="text-xl font-semibold text-slate-900">
                   {selectedSite ? getHostname(selectedSite) : "Выберите ресурс"}
                 </h2>
@@ -761,6 +1022,7 @@ export default function DashboardPage() {
                 </p>
               </div>
               {selectedSite ? (
+
                 <div className="flex flex-col items-end gap-2 text-right">
                   <span className={clsx("inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium", statusBadgeClass)}>
                     <span className="h-2.5 w-2.5 rounded-full bg-current" />
@@ -772,6 +1034,7 @@ export default function DashboardPage() {
             </div>
             {error ? (
               <div className="rounded-2xl border border-rose-200/80 bg-rose-50/80 px-4 py-3 text-sm text-rose-700 shadow-sm">{error}</div>
+
             ) : null}
             <div className="grid gap-4 xl:grid-cols-5">
               <div className="grid gap-4 sm:grid-cols-2 xl:col-span-4 xl:grid-cols-4">
@@ -785,7 +1048,9 @@ export default function DashboardPage() {
                   value={formatMs(sitePingAvg)}
                   trend={sitePingTrend}
                 />
+
                 <MetricCard title="Доступность" value={uptime === null ? "—" : `${uptime}%`} />
+
                 <MetricCard
                   title="% успешных DNS"
                   value={formatPercent(siteDnsSuccess)}
@@ -800,7 +1065,9 @@ export default function DashboardPage() {
                   accent={sslAccent}
                 />
               </div>
+
               <MetricCard title="Проверок" value={siteChecks} description="Количество записей в выборке" compact />
+
             </div>
             <IncidentBanner incidentCount={incidentsCount} windowSize={filteredLogs.length || siteChecks} />
             <div className="grid gap-4 xl:grid-cols-2">
@@ -844,7 +1111,9 @@ export default function DashboardPage() {
               onLimitChange={setLimit}
             />
           </section>
+
         </main>
+
       </div>
       <LogDetailsDrawer
         log={selectedLog}

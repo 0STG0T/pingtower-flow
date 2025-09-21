@@ -13,8 +13,11 @@ export type BaseNodeData = {
   title: string;
   emoji: string;
   description?: string;
-  status?: NodeStatus;
-  metadata?: NodeMetadataEntry[];
+  status: NodeStatus;
+  metadata: { label: string; value: string }[];
+  siteId?: number; // 👈 сюда будем сохранять id из БД
 };
 
 export type FlowNode = Node<BaseNodeData>;
+
+

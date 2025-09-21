@@ -89,6 +89,7 @@ export function minSslDays(logs: LogRecord[]): number | null {
   return Math.min(...values);
 }
 
+
 export function calcDnsSuccessRate(logs: LogRecord[]): number | null {
   if (logs.length === 0) return null;
 
@@ -110,6 +111,7 @@ export function aggregateTrafficLight(logs: LogRecord[]): TrafficLightAggregate 
     { green: 0, orange: 0, red: 0 },
   );
 }
+
 
 export function mergeTrafficLightAggregates(buckets: AggregatedBucket[]): TrafficLightAggregate {
   return buckets.reduce<TrafficLightAggregate>(
@@ -147,6 +149,7 @@ export type ChartPoint<TMeta = unknown> = {
   timestamp: number;
   value: number;
   meta?: TMeta;
+
 };
 
 export function buildTimeseries(
@@ -155,6 +158,7 @@ export function buildTimeseries(
   maxPoints = 3000,
 ): ChartPoint<LogRecord>[] {
   const points: ChartPoint<LogRecord>[] = [];
+
 
   const safeLogs = logs.filter((log) => asNumber(log[field]) !== null);
   if (safeLogs.length === 0) return points;
@@ -171,6 +175,7 @@ export function buildTimeseries(
       timestamp: new Date(referenceLog.timestamp).getTime(),
       value: toFixedNumber(avgValue),
       meta: referenceLog,
+
     });
   }
 

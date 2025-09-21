@@ -13,6 +13,7 @@ export type TrafficLightPieProps = {
 };
 
 export function TrafficLightPie({ data, title = "Статусы" }: TrafficLightPieProps) {
+
   const transformed = Object.entries(data).map(([key, value]) => ({
     name: key,
     value,
@@ -23,6 +24,7 @@ export function TrafficLightPie({ data, title = "Статусы" }: TrafficLight
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 p-4 shadow-sm backdrop-blur">
       <h3 className="text-sm font-semibold text-slate-600">{title}</h3>
+
       <div className="flex h-full flex-1 items-center justify-center">
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
