@@ -126,7 +126,10 @@ const formatDays = (value: number | null, digits = 1) =>
   value === null ? "—" : `${value.toFixed(digits)} дн.`;
 
 
+// ...все твои импорты остаются
+
 export default function DashboardPage() {
+  // --- state (без изменений)
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
@@ -153,163 +156,87 @@ export default function DashboardPage() {
     [timeRange],
   );
 
+  // --- загрузка списка сайтов
   useEffect(() => {
     let isMounted = true;
-    const loadSites = async () => {
-      try {
-        const response = await axios.get<Site[]>(`${API_URL}/sites`);
+    axios.get<Site[]>(`${API_URL}/sites`)
+      .then((res) => {
         if (!isMounted) return;
-        setSites(response.data);
-        if (response.data.length > 0) {
-          setSelectedSiteUrl((current) => current || response.data[0].url);
+        setSites(res.data);
+        if (res.data.length > 0) {
+          setSelectedSiteUrl((cur) => cur || res.data[0].url);
         }
-      } catch (err) {
-        console.error("Failed to load sites", err);
-        if (isMounted) {
-          setOverviewError("Не удалось загрузить список сайтов");
-        }
-      }
-    };
-
-    loadSites();
-    return () => {
-      isMounted = false;
-    };
+      })
+      .catch(() => {
+        if (isMounted) setOverviewError("Не удалось загрузить список сайтов");
+      });
+    return () => { isMounted = false; };
   }, []);
 
-  const fetchOverviewData = useCallback(
-    async (signal?: AbortSignal) => {
-      setIsOverviewLoading(true);
-      const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
-      try {
-        const response = await axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
-          params: {
-            since,
-            group_by: timeRangeConfig.groupBy,
-          },
-          signal,
-        });
-        if (signal?.aborted) return;
-        setOverview(response.data);
-        setOverviewError(null);
-      } catch (err) {
-        if (err instanceof CanceledError || signal?.aborted) {
-          return;
-        }
-        console.error("Failed to load overview", err);
+  // --- общая загрузка overview + site
+  const loadData = useCallback(async (signal?: AbortSignal) => {
+    const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
+
+    // Overview
+    setIsOverviewLoading(true);
+    try {
+      const res = await axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
+        params: { since, group_by: timeRangeConfig.groupBy },
+        signal,
+      });
+      if (!signal?.aborted) setOverview(res.data);
+    } catch (err) {
+      if (!(err instanceof CanceledError) && !signal?.aborted) {
         setOverviewError("Не удалось загрузить общую статистику");
-      } finally {
-        if (!signal?.aborted) {
-          setIsOverviewLoading(false);
-        }
       }
-    },
-    [timeRangeConfig.durationMs, timeRangeConfig.groupBy],
-  );
+    } finally {
+      if (!signal?.aborted) setIsOverviewLoading(false);
+    }
 
-  const fetchSiteData = useCallback(
-    async (signal?: AbortSignal) => {
-      if (!selectedSiteUrl) {
-        setLogs([]);
-        setSiteAggregate(null);
-        return;
-      }
-
-      setIsSiteLoading(true);
-      const since = new Date(Date.now() - timeRangeConfig.durationMs).toISOString();
-
-      try {
-
-        const [aggregateResponse, logsResponse] = await Promise.all([
-          axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
-            params: {
-              since,
-              group_by: timeRangeConfig.groupBy,
-              url: selectedSiteUrl,
-            },
-            signal,
-          }),
-          axios.get<LogRecord[]>(`${API_URL}/logs`, {
-            params: {
-              url: selectedSiteUrl,
-              limit,
-              since,
-            },
-            signal,
-          }),
-        ]);
-
-        if (signal?.aborted) return;
-
-        setSiteAggregate(aggregateResponse.data);
-        const payload = Array.isArray(logsResponse.data) ? logsResponse.data : [];
-        setLogs(payload);
+    // Site
+    if (!selectedSiteUrl) return;
+    setIsSiteLoading(true);
+    try {
+      const [agg, logsRes] = await Promise.all([
+        axios.get<AggregatedDashboardResponse>(`${API_URL}/logs/aggregated`, {
+          params: { since, group_by: timeRangeConfig.groupBy, url: selectedSiteUrl },
+          signal,
+        }),
+        axios.get<LogRecord[]>(`${API_URL}/logs`, {
+          params: { url: selectedSiteUrl, limit, since },
+          signal,
+        }),
+      ]);
+      if (!signal?.aborted) {
+        setSiteAggregate(agg.data);
+        setLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
         setError(null);
         setLastUpdated(new Date());
-      } catch (err) {
-        if (err instanceof CanceledError || signal?.aborted) {
-          return;
-        }
-        console.error("Failed to load site dashboard", err);
+      }
+    } catch (err) {
+      if (!(err instanceof CanceledError) && !signal?.aborted) {
         setError("Не удалось загрузить данные сайта");
-      } finally {
-        if (!signal?.aborted) {
-          setIsSiteLoading(false);
-        }
       }
-    },
-    [limit, selectedSiteUrl, timeRangeConfig.durationMs, timeRangeConfig.groupBy],
-  );
+    } finally {
+      if (!signal?.aborted) setIsSiteLoading(false);
+    }
+  }, [timeRangeConfig, selectedSiteUrl, limit]);
 
+  // --- запуск загрузки
   useEffect(() => {
     const controller = new AbortController();
-    fetchOverviewData(controller.signal);
+    loadData(controller.signal);
     return () => controller.abort();
-  }, [fetchOverviewData]);
+  }, [loadData]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchSiteData(controller.signal);
-    return () => controller.abort();
-  }, [fetchSiteData]);
-
-  useEffect(() => {
-
-    const handleClickOutside = (event: MouseEvent) => {
-      if (!sitePickerRef.current) return;
-      if (!sitePickerRef.current.contains(event.target as Node)) {
-        setSitePickerOpen(false);
-      }
-    };
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setSitePickerOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, []);
-
+  // --- автообновление
   useEffect(() => {
     if (!autoRefreshEnabled) return;
-    const intervalId = window.setInterval(() => {
-      fetchOverviewData();
-      fetchSiteData();
-    }, clamp(autoRefreshInterval, 1, 60) * 1000);
-    return () => window.clearInterval(intervalId);
-  }, [autoRefreshEnabled, autoRefreshInterval, fetchOverviewData, fetchSiteData]);
+    const id = setInterval(() => loadData(), clamp(autoRefreshInterval, 1, 60) * 1000);
+    return () => clearInterval(id);
+  }, [autoRefreshEnabled, autoRefreshInterval, loadData]);
 
-  const handleManualRefresh = useCallback(() => {
-    fetchOverviewData();
-    fetchSiteData();
-  }, [fetchOverviewData, fetchSiteData]);
+  const handleManualRefresh = useCallback(() => { loadData(); }, [loadData]);
 
   const sortedLogs = useMemo(
     () => [...logs].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()),
