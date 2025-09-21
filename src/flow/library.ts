@@ -1,4 +1,9 @@
-import type { BaseNodeData, BlockVariant } from "./nodes/types";
+import {
+  DEFAULT_PING_INTERVAL,
+  buildWebsiteMetadata,
+  type BaseNodeData,
+  type BlockVariant,
+} from "./nodes/types";
 
 export type LibraryCategory = "Источники" | "Логика" | "Доставка";
 
@@ -15,14 +20,16 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
     type: "website",
     category: "Источники",
     data: {
-      title: "Мониторинг сайта",
+      title: "Пингер сайта",
       emoji: "🌐",
-      description: "Проверяет доступность страницы каждые N минут",
+      description: "https://example.com",
       status: "idle",
-      metadata: [
-        { label: "URL", value: "https://pingtower.com" },
-        { label: "Период", value: "60 сек" },
-      ],
+      ping_interval: DEFAULT_PING_INTERVAL,
+      metadata: buildWebsiteMetadata({
+        title: "Пингер сайта",
+        description: "https://example.com",
+        ping_interval: DEFAULT_PING_INTERVAL,
+      }),
     },
   },
   {
@@ -52,6 +59,21 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
       metadata: [
         { label: "Канал", value: "@pingtower" },
         { label: "Формат", value: "Markdown" },
+      ],
+    },
+  },
+  {
+    templateId: "telegram-official-bot",
+    type: "telegram",
+    category: "Доставка",
+    data: {
+      title: "Telegram бот",
+      emoji: "🤖",
+      description: "@T1_InTeam_bot",
+      status: "idle",
+      metadata: [
+        { label: "Тег", value: "@T1_InTeam_bot" },
+        { label: "Статус", value: "Готов к приёму" },
       ],
     },
   },

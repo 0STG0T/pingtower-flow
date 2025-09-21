@@ -23,6 +23,7 @@ import { useShallow } from "zustand/react/shallow";
 import { NODE_LIBRARY } from "./library";
 import LLMNode from "./nodes/LLMNode";
 import MessengerNode from "./nodes/MessengerNode";
+import TelegramNode from "./nodes/TelegramNode";
 import WebsiteNode from "./nodes/WebsiteNode";
 import type { FlowNode } from "./nodes/types";
 import { useFlowStore } from "../state/store";
@@ -33,6 +34,7 @@ const nodeTypes = {
   website: WebsiteNode,
   llm: LLMNode,
   messenger: MessengerNode,
+  telegram: TelegramNode,
 };
 
 const EDGE_COLOR = "#38bdf8";
@@ -66,7 +68,7 @@ function CanvasInner() {
     setNodes,
     setEdges,
     setSelectedNode,
-    syncWebsiteNode,
+    createWebsiteNode,
   } = useFlowStore(
     useShallow((state) => ({
       nodes: state.nodes,
@@ -74,7 +76,7 @@ function CanvasInner() {
       setNodes: state.setNodes,
       setEdges: state.setEdges,
       setSelectedNode: state.setSelectedNode,
-      syncWebsiteNode: state.syncWebsiteNode,
+      createWebsiteNode: state.createWebsiteNode,
     }))
   );
 
@@ -141,8 +143,13 @@ function CanvasInner() {
         y: event.clientY,
       });
 
+      if (template.type === "website") {
+        void createWebsiteNode(position, template.data);
+        return;
+      }
+
       const newNode: FlowNode = {
-        id: `temp-${nanoid()}`, // 🔹 временный id (будет заменён на id из БД при saveSite)
+        id: `temp-${nanoid()}`,
         type: template.type,
         position,
         data: { ...template.data },
@@ -150,13 +157,8 @@ function CanvasInner() {
 
       setNodes((nds) => nds.concat(newNode));
       setSelectedNode(newNode.id);
-
-      // 🔹 Если узел — сайт, сразу синхронизируем с БД
-      if (newNode.type === "website") {
-        syncWebsiteNode(newNode);
-      }
     },
-    [reactFlow, setNodes, setSelectedNode, syncWebsiteNode]
+    [createWebsiteNode, reactFlow, setNodes, setSelectedNode]
   );
 
   const backgroundGap = useMemo(() => ({ x: 40, y: 40 }), []);
