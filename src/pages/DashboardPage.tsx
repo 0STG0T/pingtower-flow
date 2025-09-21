@@ -567,6 +567,31 @@ export default function DashboardPage() {
             </div>
           </section>
 
+          <section className="space-y-5">
+            <header className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Глобальные тренды</p>
+                <h2 className="text-xl font-semibold text-slate-900">Все сайты</h2>
+              </div>
+              <p className="text-sm text-slate-500">
+                Отображение агрегированных значений по всему парку сайтов.
+              </p>
+            </header>
+            <div className="grid gap-4 xl:grid-cols-2">
+              <LatencyChart
+                data={overviewLatencySeries}
+                label="Латентность (все сайты)"
+                tooltipFormatter={aggregatedTooltip("Латентность", "мс")}
+              />
+              <PingChart
+                data={overviewPingSeries}
+                label="Пинг (все сайты)"
+                tooltipFormatter={aggregatedTooltip("Пинг", "мс")}
+              />
+            </div>
+            <TrafficLightTimeline data={overviewTrafficSeries} title="Распределение статусов (все сайты)" />
+          </section>
+
           <div className="relative z-30">
             <div className="rounded-[28px] border border-slate-200 bg-white/95 px-6 py-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.5)] backdrop-blur">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -734,31 +759,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
-
-          <section className="space-y-5">
-            <header className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">Глобальные тренды</p>
-                <h2 className="text-xl font-semibold text-slate-900">Все сайты</h2>
-              </div>
-              <p className="text-sm text-slate-500">
-                Отображение агрегированных значений по всему парку сайтов.
-              </p>
-            </header>
-            <div className="grid gap-4 xl:grid-cols-2">
-              <LatencyChart
-                data={overviewLatencySeries}
-                label="Латентность (все сайты)"
-                tooltipFormatter={aggregatedTooltip("Латентность", "мс")}
-              />
-              <PingChart
-                data={overviewPingSeries}
-                label="Пинг (все сайты)"
-                tooltipFormatter={aggregatedTooltip("Пинг", "мс")}
-              />
-            </div>
-            <TrafficLightTimeline data={overviewTrafficSeries} title="Распределение статусов (все сайты)" />
-          </section>
 
           <section className="space-y-8 rounded-[28px] border border-slate-200 bg-white/90 px-6 py-7 shadow-sm backdrop-blur">
             <div className="flex flex-wrap items-start justify-between gap-4">
