@@ -31,6 +31,12 @@ const variantStyles: Record<
     accent: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
     size: { width: 210, height: 160, radius: "rounded-2xl" },
   },
+  telegram: {
+    border: "border-emerald-200",
+    glow: "shadow-[0_10px_32px_-18px_rgba(16,185,129,0.55)]",
+    accent: "bg-emerald-500/10 text-emerald-600 border-emerald-200",
+    size: { width: 210, height: 160, radius: "rounded-2xl" },
+  },
 };
 
 const statusStyles: Record<

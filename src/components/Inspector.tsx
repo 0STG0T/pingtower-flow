@@ -24,6 +24,7 @@ const typeLabels: Record<BlockVariant, string> = {
   website: "Источник",
   llm: "Логика",
   messenger: "Доставка",
+  telegram: "Доставка",
 };
 
 export default function Inspector() {
@@ -97,7 +98,6 @@ export default function Inspector() {
 
     if (!node) return;
     if (raw.trim() === "") return;
-
 
     const normalized = normalizePingInterval(raw);
     if (!normalized) return;
@@ -202,7 +202,6 @@ export default function Inspector() {
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Интервал опроса (сек)</label>
               <input
                 type="number"
-
                 min={MIN_PING_INTERVAL}
                 max={MAX_PING_INTERVAL}
 
@@ -221,6 +220,11 @@ export default function Inspector() {
               🗑 Удалить блок
             </button>
           </>
+        ) : node.type === "telegram" ? (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-700 shadow-sm">
+            Этот Telegram-бот не имеет настраиваемых параметров. Просто подключите к нему нужные сайты.
+          </div>
+
         ) : (
           <>
             <div className="space-y-2">

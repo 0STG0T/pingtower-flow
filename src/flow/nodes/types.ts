@@ -1,7 +1,7 @@
 import type { Edge, Node } from "reactflow";
 
 // Варианты блоков
-export type BlockVariant = "website" | "llm" | "messenger";
+export type BlockVariant = "website" | "llm" | "messenger" | "telegram";
 
 // Статусы нод
 export type NodeStatus = "idle" | "running" | "success" | "error";
@@ -25,6 +25,8 @@ export type BaseNodeData = {
   status?: NodeStatus;
   metadata?: NodeMetadataEntry[];
   ping_interval?: number;
+  com?: Record<string, unknown> | null;
+
 };
 
 export function normalizePingInterval(value: string): number | undefined {
@@ -37,11 +39,25 @@ export function normalizePingInterval(value: string): number | undefined {
 export function buildWebsiteMetadata(data: BaseNodeData): NodeMetadataEntry[] {
   const interval = data.ping_interval ?? DEFAULT_PING_INTERVAL;
 
-  return [
+  const entries: NodeMetadataEntry[] = [
+
     { label: "URL", value: data.description ?? "—" },
     { label: "Название", value: data.title ?? "Без имени" },
     { label: "Интервал", value: `${interval} сек` },
   ];
+
+  const telegramStatusRaw =
+    data.com && typeof data.com === "object" && "tg" in data.com
+      ? (data.com as Record<string, unknown>).tg
+      : undefined;
+
+  if (telegramStatusRaw !== undefined) {
+    const isEnabled = Number(telegramStatusRaw) === 1 || telegramStatusRaw === true;
+    entries.push({ label: "Telegram", value: isEnabled ? "Подключен" : "Отключен" });
+  }
+
+  return entries;
+
 }
 
 // FlowNode

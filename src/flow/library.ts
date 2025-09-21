@@ -66,4 +66,19 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
       ],
     },
   },
+  {
+    templateId: "telegram-official-bot",
+    type: "telegram",
+    category: "Доставка",
+    data: {
+      title: "Telegram бот",
+      emoji: "🤖",
+      description: "@T1_InTeam_bot",
+      status: "idle",
+      metadata: [
+        { label: "Тег", value: "@T1_InTeam_bot" },
+        { label: "Статус", value: "Готов к приёму" },
+      ],
+    },
+  },
 ];

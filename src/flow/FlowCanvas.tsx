@@ -23,6 +23,7 @@ import { useShallow } from "zustand/react/shallow";
 import { NODE_LIBRARY } from "./library";
 import LLMNode from "./nodes/LLMNode";
 import MessengerNode from "./nodes/MessengerNode";
+import TelegramNode from "./nodes/TelegramNode";
 import WebsiteNode from "./nodes/WebsiteNode";
 import type { FlowNode } from "./nodes/types";
 import { useFlowStore } from "../state/store";
@@ -33,6 +34,7 @@ const nodeTypes = {
   website: WebsiteNode,
   llm: LLMNode,
   messenger: MessengerNode,
+  telegram: TelegramNode,
 };
 
 const EDGE_COLOR = "#38bdf8";

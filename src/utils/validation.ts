@@ -3,8 +3,9 @@ import type { Connection, Edge } from "reactflow";
 import type { BlockVariant, FlowNode } from "../flow/nodes/types";
 
 const forbiddenConnections: Partial<Record<BlockVariant, BlockVariant[]>> = {
-  llm: ["website"],
-  messenger: ["llm", "website"],
+  llm: ["website", "telegram"],
+  messenger: ["llm", "website", "telegram"],
+  telegram: ["llm", "website", "messenger"],
 };
 
 type ConnectionContext = {
