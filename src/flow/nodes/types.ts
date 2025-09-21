@@ -17,6 +17,7 @@ export const DEFAULT_PING_INTERVAL = 30;
 export const MIN_PING_INTERVAL = 1;
 export const MAX_PING_INTERVAL = 3600;
 
+
 export type BaseNodeData = {
   title?: string;
   description?: string;
@@ -25,6 +26,7 @@ export type BaseNodeData = {
   metadata?: NodeMetadataEntry[];
   ping_interval?: number;
   com?: Record<string, unknown> | null;
+
 };
 
 export function normalizePingInterval(value: string): number | undefined {
@@ -38,6 +40,7 @@ export function buildWebsiteMetadata(data: BaseNodeData): NodeMetadataEntry[] {
   const interval = data.ping_interval ?? DEFAULT_PING_INTERVAL;
 
   const entries: NodeMetadataEntry[] = [
+
     { label: "URL", value: data.description ?? "—" },
     { label: "Название", value: data.title ?? "Без имени" },
     { label: "Интервал", value: `${interval} сек` },
@@ -54,6 +57,7 @@ export function buildWebsiteMetadata(data: BaseNodeData): NodeMetadataEntry[] {
   }
 
   return entries;
+
 }
 
 // FlowNode

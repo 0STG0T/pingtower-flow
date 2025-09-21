@@ -7,11 +7,13 @@ import {
   patchSiteParams,
   type SiteRecord,
 } from "../lib/api";
+
 import {
   type BaseNodeData,
   type FlowNode,
   buildWebsiteMetadata,
   DEFAULT_PING_INTERVAL,
+
   MAX_PING_INTERVAL,
   MIN_PING_INTERVAL,
   normalizePingInterval,
@@ -75,6 +77,7 @@ const isWebsiteConnectedToTelegram = (siteId: string, nodes: FlowNode[], edges: 
   });
 };
 
+
 type FlowStore = {
   flowName: string;
   setFlowName: (name: string) => void;
@@ -91,6 +94,7 @@ type FlowStore = {
   initFromDb: () => Promise<void>;
   createWebsiteNode: (position: XYPosition, template: BaseNodeData) => Promise<FlowNode | undefined>;
   saveSite: (node: FlowNode) => Promise<SiteRecord | undefined>;
+
   deleteSiteNode: (nodeId: string, siteId: number) => Promise<void>;
   syncWebsiteNode: (node: FlowNode) => Promise<SiteRecord | undefined>;
   updateNodeData: (id: string, data: Partial<BaseNodeData>) => void;
@@ -243,6 +247,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
         type: "website",
         position,
         data: {
+
           emoji: template.emoji ?? "🌐",
           status: template.status ?? "idle",
           title: saved.name,
@@ -254,6 +259,81 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
             description: saved.url,
             ping_interval: saved.ping_interval ?? normalizedInterval,
             com,
+
+          }),
+        },
+      };
+
+      set((state) => ({
+        nodes: state.nodes.concat(node),
+        selectedNodeId: node.id,
+        isDirty: false,
+        lastSavedAt: new Date(),
+      }));
+
+      return node;
+    } catch (err) {
+      console.error("[FlowStore] Ошибка создания сайта:", err);
+    }
+  },
+
+  createWebsiteNode: async (position, template) => {
+    if (typeof window === "undefined") return;
+
+    const defaultUrl = template.description?.trim() || "https://example.com";
+    const defaultName = template.title?.trim() || "Новый сайт";
+    const defaultInterval = template.ping_interval ?? DEFAULT_PING_INTERVAL;
+
+    const urlInput = window.prompt("Введите URL сайта", defaultUrl);
+    if (urlInput === null) return;
+    const url = urlInput.trim();
+    if (!url) {
+      window.alert("URL не может быть пустым");
+      return;
+    }
+
+    const nameInput = window.prompt("Введите название сайта", defaultName);
+    if (nameInput === null) return;
+    const name = nameInput.trim();
+    if (!name) {
+      window.alert("Название не может быть пустым");
+      return;
+    }
+
+    const intervalInput = window.prompt(
+      "Введите интервал опроса (сек)",
+      String(defaultInterval)
+    );
+    if (intervalInput === null) return;
+
+    const normalizedInterval = normalizePingInterval(intervalInput);
+    if (!normalizedInterval) {
+      window.alert(
+        `Интервал должен быть положительным числом от ${MIN_PING_INTERVAL} до ${MAX_PING_INTERVAL}`
+      );
+      return;
+    }
+
+    try {
+      const saved = await createSite(url, name, normalizedInterval);
+
+
+      const node: FlowNode = {
+        id: String(saved.id),
+        type: "website",
+        position,
+        data: {
+          emoji: template.emoji ?? "🌐",
+          status: template.status ?? "idle",
+          title: saved.name,
+          description: saved.url,
+
+          ping_interval: saved.ping_interval ?? normalizedInterval,
+          metadata: buildWebsiteMetadata({
+            title: saved.name,
+            description: saved.url,
+            ping_interval: saved.ping_interval ?? normalizedInterval,
+
           }),
         },
       };
@@ -295,13 +375,14 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
                   ...n.data,
                   title: saved.name,
                   description: saved.url,
-                  ping_interval: saved.ping_interval,
                   com,
+
                   metadata: buildWebsiteMetadata({
                     title: saved.name,
                     description: saved.url,
                     ping_interval: saved.ping_interval,
                     com,
+
                   }),
                 },
               }
@@ -450,6 +531,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       isDirty: true,
     }));
     get().setEdges((edges) => edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+
   },
 
   runFlow: () => set({ isRunning: true, lastRunAt: new Date() }),

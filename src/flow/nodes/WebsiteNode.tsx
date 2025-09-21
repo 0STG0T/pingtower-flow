@@ -2,6 +2,7 @@ import { type MouseEventHandler } from "react";
 import { NodeToolbar, type NodeProps } from "reactflow";
 import { useFlowStore } from "../../state/store";
 import BaseBlock from "./BaseBlock";
+
 import {
   buildWebsiteMetadata,
   DEFAULT_PING_INTERVAL,
@@ -105,6 +106,7 @@ export default function WebsiteNode(props: NodeProps<BaseNodeData>) {
             🗑 Удалить
           </button>
         </div>
+
       </NodeToolbar>
       <BaseBlock {...props} variant="website" data={{ ...data, metadata }} />
     </>
