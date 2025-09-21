@@ -6,7 +6,8 @@ import {
   buildWebsiteMetadata,
   DEFAULT_PING_INTERVAL,
 } from "../flow/nodes/types";
-import type { Edge } from "reactflow";
+import type { Edge, XYPosition } from "reactflow";
+
 
 export type NodeStatus = "idle" | "running" | "success" | "error";
 
@@ -33,6 +34,7 @@ type FlowStore = {
   setSelectedNode: (id?: string) => void;
 
   initFromDb: () => Promise<void>;
+  createWebsiteNode: (position: XYPosition, template: BaseNodeData) => Promise<FlowNode | undefined>;
   saveSite: (node: FlowNode) => Promise<{ id: number; url: string; name: string; ping_interval: number } | undefined>;
   deleteSiteNode: (nodeId: string, siteId: number) => Promise<void>;
   syncWebsiteNode: (node: FlowNode) => Promise<{ id: number; url: string; name: string; ping_interval: number } | undefined>;
@@ -93,6 +95,45 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       set({ nodes, isDirty: false });
     } catch (err) {
       console.error("[FlowStore] Ошибка загрузки сайтов:", err);
+    }
+  },
+
+  createWebsiteNode: async (position, template) => {
+    const defaultUrl = "https://google.com";
+    const defaultName = "Google";
+    const defaultInterval = template.ping_interval ?? DEFAULT_PING_INTERVAL;
+
+    try {
+      const saved = await createSite(defaultUrl, defaultName, defaultInterval);
+
+      const node: FlowNode = {
+        id: String(saved.id),
+        type: "website",
+        position,
+        data: {
+          emoji: template.emoji ?? "🌐",
+          status: template.status ?? "idle",
+          title: saved.name,
+          description: saved.url,
+          ping_interval: saved.ping_interval ?? defaultInterval,
+          metadata: buildWebsiteMetadata({
+            title: saved.name,
+            description: saved.url,
+            ping_interval: saved.ping_interval ?? defaultInterval,
+          }),
+        },
+      };
+
+      set((state) => ({
+        nodes: state.nodes.concat(node),
+        selectedNodeId: node.id,
+        isDirty: false,
+        lastSavedAt: new Date(),
+      }));
+
+      return node;
+    } catch (err) {
+      console.error("[FlowStore] Ошибка создания сайта:", err);
     }
   },
 
