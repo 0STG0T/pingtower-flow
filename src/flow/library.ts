@@ -1,4 +1,4 @@
-import type { BaseNodeData, BlockVariant } from "./nodes/types";
+import { DEFAULT_PING_INTERVAL, type BaseNodeData, type BlockVariant } from "./nodes/types";
 
 export type LibraryCategory = "Источники" | "Логика" | "Доставка";
 
@@ -15,13 +15,15 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
     type: "website",
     category: "Источники",
     data: {
-      title: "Мониторинг сайта",
+      title: "Google",
       emoji: "🌐",
-      description: "Проверяет доступность страницы каждые N минут",
+      description: "https://google.com",
       status: "idle",
+      ping_interval: DEFAULT_PING_INTERVAL,
       metadata: [
-        { label: "URL", value: "https://pingtower.com" },
-        { label: "Период", value: "60 сек" },
+        { label: "URL", value: "https://google.com" },
+        { label: "Название", value: "Google" },
+        { label: "Интервал", value: `${DEFAULT_PING_INTERVAL} сек` },
       ],
     },
   },

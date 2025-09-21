@@ -1,9 +1,24 @@
 import { create } from "zustand";
 import { fetchSites, createSite, updateSite, deleteSite } from "../lib/api";
-import type { FlowNode, BaseNodeData } from "../flow/nodes/types";
-import type { Edge } from "reactflow";
+import {
+  type BaseNodeData,
+  type FlowNode,
+  buildWebsiteMetadata,
+  DEFAULT_PING_INTERVAL,
+} from "../flow/nodes/types";
+import type { Edge, XYPosition } from "reactflow";
 
 export type NodeStatus = "idle" | "running" | "success" | "error";
+
+const websiteSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+const cancelWebsiteSyncTimer = (nodeId: string) => {
+  const timer = websiteSyncTimers.get(nodeId);
+  if (timer) {
+    clearTimeout(timer);
+    websiteSyncTimers.delete(nodeId);
+  }
+};
 
 type FlowStore = {
   flowName: string;
@@ -18,10 +33,12 @@ type FlowStore = {
   setSelectedNode: (id?: string) => void;
 
   initFromDb: () => Promise<void>;
+  createWebsiteNode: (position: XYPosition, template: BaseNodeData) => Promise<FlowNode | undefined>;
   saveSite: (node: FlowNode) => Promise<{ id: number; url: string; name: string; ping_interval: number } | undefined>;
   deleteSiteNode: (nodeId: string, siteId: number) => Promise<void>;
   syncWebsiteNode: (node: FlowNode) => Promise<{ id: number; url: string; name: string; ping_interval: number } | undefined>;
   updateNodeData: (id: string, data: Partial<BaseNodeData>) => void;
+  removeNode: (nodeId: string) => void;
 
   runFlow: () => void;
   stopFlow: () => void;
@@ -66,17 +83,56 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
           description: site.url,
           emoji: "🌐",
           status: "idle" as NodeStatus,
-          ping_interval: site.ping_interval ?? 30,
-          metadata: [
-            { label: "URL", value: site.url },
-            { label: "Имя", value: site.name },
-            { label: "Интервал", value: site.ping_interval?.toString() ?? "30" },
-          ],
+          ping_interval: site.ping_interval ?? DEFAULT_PING_INTERVAL,
+          metadata: buildWebsiteMetadata({
+            title: site.name,
+            description: site.url,
+            ping_interval: site.ping_interval ?? DEFAULT_PING_INTERVAL,
+          }),
         },
       }));
       set({ nodes, isDirty: false });
     } catch (err) {
       console.error("[FlowStore] Ошибка загрузки сайтов:", err);
+    }
+  },
+
+  createWebsiteNode: async (position, template) => {
+    const defaultUrl = "https://google.com";
+    const defaultName = "Google";
+    const defaultInterval = template.ping_interval ?? DEFAULT_PING_INTERVAL;
+
+    try {
+      const saved = await createSite(defaultUrl, defaultName, defaultInterval);
+
+      const node: FlowNode = {
+        id: String(saved.id),
+        type: "website",
+        position,
+        data: {
+          emoji: template.emoji ?? "🌐",
+          status: template.status ?? "idle",
+          title: saved.name,
+          description: saved.url,
+          ping_interval: saved.ping_interval ?? defaultInterval,
+          metadata: buildWebsiteMetadata({
+            title: saved.name,
+            description: saved.url,
+            ping_interval: saved.ping_interval ?? defaultInterval,
+          }),
+        },
+      };
+
+      set((state) => ({
+        nodes: state.nodes.concat(node),
+        selectedNodeId: node.id,
+        isDirty: false,
+        lastSavedAt: new Date(),
+      }));
+
+      return node;
+    } catch (err) {
+      console.error("[FlowStore] Ошибка создания сайта:", err);
     }
   },
 
@@ -87,7 +143,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
     try {
       const url = node.data.description || "";
       const name = node.data.title || "Без имени";
-      const ping_interval = node.data.ping_interval ?? 30;
+      const ping_interval = node.data.ping_interval ?? DEFAULT_PING_INTERVAL;
 
       const saved = node.id.startsWith("temp-")
         ? await createSite(url, name, ping_interval)
@@ -104,6 +160,11 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
                   title: saved.name,
                   description: saved.url,
                   ping_interval: saved.ping_interval,
+                  metadata: buildWebsiteMetadata({
+                    title: saved.name,
+                    description: saved.url,
+                    ping_interval: saved.ping_interval,
+                  }),
                 },
               }
             : n
@@ -123,8 +184,9 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
     try {
       await deleteSite(Number(siteId));
     } catch (err) {
-      console.warn("[FlowStore] Сервер не нашёл сайт, удаляем только локально", { nodeId, siteId });
+      console.warn("[FlowStore] Сервер не нашёл сайт, удаляем только локально", { nodeId, siteId, err });
     } finally {
+      cancelWebsiteSyncTimer(nodeId);
       set((state) => ({
         nodes: state.nodes.filter((n) => n.id !== nodeId),
         isDirty: true,
@@ -140,13 +202,55 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   },
 
   // ✏️ обновить локально
-  updateNodeData: (id, data) =>
+  updateNodeData: (id, data) => {
+    let updatedNode: FlowNode | undefined;
+
     set((state) => ({
-      nodes: state.nodes.map((node) =>
-        node.id === id ? { ...node, data: { ...node.data, ...data } } : node
-      ),
+      nodes: state.nodes.map((node) => {
+        if (node.id !== id) return node;
+
+        const nextData: BaseNodeData = {
+          ...node.data,
+          ...data,
+        };
+
+        if (node.type === "website") {
+          nextData.metadata = buildWebsiteMetadata(nextData);
+        }
+
+        const nextNode = { ...node, data: nextData };
+        updatedNode = nextNode;
+        return nextNode;
+      }),
       isDirty: true,
-    })),
+    }));
+
+    const shouldSyncWebsite =
+      updatedNode?.type === "website" &&
+      ("title" in data || "description" in data || "ping_interval" in data);
+
+    if (updatedNode && shouldSyncWebsite) {
+      const existingTimer = websiteSyncTimers.get(updatedNode.id);
+      if (existingTimer) {
+        clearTimeout(existingTimer);
+      }
+
+      const timer = setTimeout(() => {
+        void get().syncWebsiteNode(updatedNode!);
+        websiteSyncTimers.delete(updatedNode!.id);
+      }, 500);
+
+      websiteSyncTimers.set(updatedNode.id, timer);
+    }
+  },
+
+  removeNode: (nodeId) => {
+    cancelWebsiteSyncTimer(nodeId);
+    set((state) => ({
+      nodes: state.nodes.filter((node) => node.id !== nodeId),
+      isDirty: true,
+    }));
+  },
 
   runFlow: () => set({ isRunning: true, lastRunAt: new Date() }),
   stopFlow: () => set({ isRunning: false }),
