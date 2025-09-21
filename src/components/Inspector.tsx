@@ -12,6 +12,7 @@ import {
   type NodeStatus,
 } from "../flow/nodes/types";
 
+
 const statusOptions: { value: NodeStatus; label: string; className: string }[] = [
   { value: "idle", label: "Ожидание", className: "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-600" },
   { value: "running", label: "Выполняется", className: "border-amber-200 bg-amber-50 text-amber-600 hover:border-amber-300 hover:text-amber-700" },
@@ -97,8 +98,10 @@ export default function Inspector() {
     if (!node) return;
     if (raw.trim() === "") return;
 
+
     const normalized = normalizePingInterval(raw);
     if (!normalized) return;
+
 
     if (node.data.ping_interval !== normalized) {
       updateNodeData(node.id, { ping_interval: normalized });
@@ -118,9 +121,11 @@ export default function Inspector() {
 
     const normalized = normalizePingInterval(raw);
     if (!normalized) {
+
       setForm((prev) => ({ ...prev, ping_interval: String(fallback) }));
       return;
     }
+
 
     if (String(normalized) !== form.ping_interval) {
       setForm((prev) => ({ ...prev, ping_interval: String(normalized) }));
@@ -128,6 +133,7 @@ export default function Inspector() {
 
     if (node.data.ping_interval !== normalized) {
       updateNodeData(node.id, { ping_interval: normalized });
+
     }
   };
 
@@ -196,8 +202,10 @@ export default function Inspector() {
               <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Интервал опроса (сек)</label>
               <input
                 type="number"
+
                 min={MIN_PING_INTERVAL}
                 max={MAX_PING_INTERVAL}
+
                 value={form.ping_interval}
                 onChange={handlePingIntervalChange}
                 onBlur={handlePingIntervalBlur}

@@ -17,6 +17,7 @@ export const DEFAULT_PING_INTERVAL = 30;
 export const MIN_PING_INTERVAL = 1;
 export const MAX_PING_INTERVAL = 3600;
 
+
 export type BaseNodeData = {
   title?: string;
   description?: string;

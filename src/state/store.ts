@@ -5,6 +5,7 @@ import {
   type FlowNode,
   buildWebsiteMetadata,
   DEFAULT_PING_INTERVAL,
+
   MAX_PING_INTERVAL,
   MIN_PING_INTERVAL,
   normalizePingInterval,
@@ -140,6 +141,7 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
     try {
       const saved = await createSite(url, name, normalizedInterval);
 
+
       const node: FlowNode = {
         id: String(saved.id),
         type: "website",
@@ -149,11 +151,13 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
           status: template.status ?? "idle",
           title: saved.name,
           description: saved.url,
+
           ping_interval: saved.ping_interval ?? normalizedInterval,
           metadata: buildWebsiteMetadata({
             title: saved.name,
             description: saved.url,
             ping_interval: saved.ping_interval ?? normalizedInterval,
+
           }),
         },
       };

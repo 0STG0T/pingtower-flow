@@ -1,9 +1,11 @@
+
 import {
   DEFAULT_PING_INTERVAL,
   buildWebsiteMetadata,
   type BaseNodeData,
   type BlockVariant,
 } from "./nodes/types";
+
 
 export type LibraryCategory = "Источники" | "Логика" | "Доставка";
 
@@ -20,6 +22,7 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
     type: "website",
     category: "Источники",
     data: {
+
       title: "Пингер сайта",
       emoji: "🌐",
       description: "https://example.com",
@@ -30,6 +33,7 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
         description: "https://example.com",
         ping_interval: DEFAULT_PING_INTERVAL,
       }),
+
     },
   },
   {
