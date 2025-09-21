@@ -19,7 +19,6 @@ export function TrafficLightPie({ data, title = "Статусы" }: TrafficLight
     name: key,
     value,
   }));
-
   const total = transformed.reduce<number>((sum, item) => sum + item.value, 0);
 
   return (

@@ -1,4 +1,5 @@
 import type { ChartPoint } from "@/utils/stats";
+
 import { TimeseriesChart, type TimeseriesChartProps } from "./TimeseriesChart";
 
 export type LatencyChartProps = {

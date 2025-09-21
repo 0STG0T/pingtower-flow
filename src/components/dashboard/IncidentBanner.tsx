@@ -1,6 +1,7 @@
 import { BadgeCheck, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 
+
 export type IncidentBannerProps = {
   incidentCount: number;
   windowSize: number;

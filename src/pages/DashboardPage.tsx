@@ -57,6 +57,7 @@ const TRAFFIC_BADGE: Record<TrafficLight, string> = {
   red: "border-rose-200 bg-rose-50 text-rose-600",
 };
 
+
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 const buildTrend = (series: ChartPoint[], limit = 120) => {
@@ -105,8 +106,8 @@ const formatPercent = (value: number | null, digits = 1) =>
 const formatDays = (value: number | null, digits = 1) =>
   value === null ? "—" : `${value.toFixed(digits)} дн.`;
 
-
 export default function DashboardPage() {
+  // --- state (без изменений)
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSiteUrl, setSelectedSiteUrl] = useState<string>("");
   const [timeRange, setTimeRange] = useState<(typeof TIME_RANGES)[number]["value"]>("1m");
@@ -126,7 +127,6 @@ export default function DashboardPage() {
   const [selectedLog, setSelectedLog] = useState<LogRecord | null>(null);
   const [sitePickerOpen, setSitePickerOpen] = useState(false);
   const sitePickerRef = useRef<HTMLDivElement | null>(null);
-
   const timeRangeConfig = useMemo(
     () => TIME_RANGES.find((option) => option.value === timeRange) ?? TIME_RANGES[1],
     [timeRange],
@@ -247,8 +247,9 @@ export default function DashboardPage() {
       if (!sitePickerRef.current.contains(event.target as Node)) {
         setSitePickerOpen(false);
       }
-    };
-
+      return next;
+    });
+  }, []);
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setSitePickerOpen(false);
@@ -465,7 +466,6 @@ export default function DashboardPage() {
   const overviewSiteCount = sites.length;
   const sslAccent =
     sslDaysLeftMin === null ? "default" : sslDaysLeftMin <= 0 ? "danger" : sslDaysLeftMin < 7 ? "warning" : "default";
-
   const rangeLabel = timeRangeConfig.label;
   const lastUpdatedLabel = lastUpdated ? lastUpdated.toLocaleTimeString() : null;
 
@@ -537,7 +537,6 @@ export default function DashboardPage() {
               </div>
             </div>
           </section>
-
           <div className="relative z-30">
             <div className="rounded-[28px] border border-slate-200 bg-white/95 px-6 py-5 shadow-[0_24px_60px_-40px_rgba(15,23,42,0.5)] backdrop-blur">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">

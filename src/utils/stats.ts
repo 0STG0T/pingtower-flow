@@ -87,8 +87,7 @@ export function aggregateTrafficLight(logs: LogRecord[]): TrafficLightAggregate 
     { green: 0, orange: 0, red: 0 },
   );
 }
-
-export function countIncidents(logs: LogRecord[]): number {
+untIncidents(logs: LogRecord[]): number {
   return logs.filter((log) => log.traffic_light === "orange" || log.traffic_light === "red").length;
 }
 
@@ -148,11 +147,13 @@ const formatTimeseriesValue = (field: TimeseriesField, value: number) => {
 export function buildTimeseries(
   logs: LogRecord[],
   field: TimeseriesField,
-  maxPoints = 3000,
+
+  maxPoints = 10000,
 ): ChartPoint<LogRecord>[] {
   const points: ChartPoint<LogRecord>[] = [];
 
   const safeLogs = logs.filter((log) => resolveTimeseriesValue(log, field) !== null);
+
   if (safeLogs.length === 0) return points;
 
   const bucketSize = Math.max(1, Math.ceil(safeLogs.length / maxPoints));
@@ -160,12 +161,15 @@ export function buildTimeseries(
   for (let i = 0; i < safeLogs.length; i += bucketSize) {
     const bucket = safeLogs.slice(i, i + bucketSize);
     const avgValue =
+
       bucket.reduce((sum, log) => sum + (resolveTimeseriesValue(log, field) ?? 0), 0) /
+
       bucket.length;
     const referenceLog = bucket[bucket.length - 1];
     points.push({
       timestamp: new Date(referenceLog.timestamp).getTime(),
       value: formatTimeseriesValue(field, avgValue),
+
       meta: referenceLog,
     });
   }
