@@ -23,6 +23,7 @@ export const NODE_LIBRARY: LibraryNodeTemplate[] = [
       metadata: [
         { label: "URL", value: "https://google.com" },
         { label: "Название", value: "Google" },
+
         { label: "Интервал", value: `${DEFAULT_PING_INTERVAL} сек` },
       ],
     },

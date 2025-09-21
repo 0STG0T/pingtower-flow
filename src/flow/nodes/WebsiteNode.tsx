@@ -66,6 +66,7 @@ export default function WebsiteNode(props: NodeProps<BaseNodeData>) {
     }
   };
 
+
   return (
     <>
       <NodeToolbar isVisible={selected} position="top">

@@ -8,6 +8,7 @@ import {
 } from "../flow/nodes/types";
 import type { Edge, XYPosition } from "reactflow";
 
+
 export type NodeStatus = "idle" | "running" | "success" | "error";
 
 const websiteSyncTimers = new Map<string, ReturnType<typeof setTimeout>>();
