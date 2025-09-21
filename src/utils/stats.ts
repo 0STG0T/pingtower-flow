@@ -102,7 +102,6 @@ export function calcDnsSuccessRate(logs: LogRecord[]): number | null {
   return toFixedNumber((success / logs.length) * 100, 1);
 }
 
-
 export function aggregateTrafficLight(logs: LogRecord[]): TrafficLightAggregate {
   return logs.reduce<TrafficLightAggregate>(
     (acc, log) => {
