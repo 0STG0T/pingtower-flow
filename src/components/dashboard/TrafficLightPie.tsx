@@ -14,17 +14,21 @@ export type TrafficLightPieProps = {
 
 export function TrafficLightPie({ data, title = "Статусы" }: TrafficLightPieProps) {
 
-  const transformed = Object.entries(data).map(([key, value]) => ({
+  const transformed = (Object.entries(data) as Array<
+    [keyof TrafficLightAggregate, number]
+  >).map(([key, value]) => ({
+
     name: key,
     value,
   }));
 
-  const total = transformed.reduce((sum, item) => sum + item.value, 0);
+
+  const total = transformed.reduce<number>((sum, item) => sum + item.value, 0);
+
 
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 p-4 shadow-sm backdrop-blur">
       <h3 className="text-sm font-semibold text-slate-600">{title}</h3>
-
       <div className="flex h-full flex-1 items-center justify-center">
         <ResponsiveContainer width="100%" height={220}>
           <PieChart>
@@ -45,7 +49,9 @@ export function TrafficLightPie({ data, title = "Статусы" }: TrafficLight
             </Pie>
             <Tooltip
               formatter={(value: number, name: string) => {
-                const percentage = total === 0 ? 0 : ((value as number) / total) * 100;
+
+                const percentage = total === 0 ? 0 : (value / total) * 100;
+
                 return [`${value} • ${percentage.toFixed(1)}%`, name];
               }}
             />
@@ -54,7 +60,7 @@ export function TrafficLightPie({ data, title = "Статусы" }: TrafficLight
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs text-slate-500">
         {transformed.map((entry) => {
-          const percentage = total === 0 ? 0 : ((entry.value ?? 0) / total) * 100;
+          const percentage = total === 0 ? 0 : (entry.value / total) * 100;
           return (
             <div key={entry.name} className="flex items-center gap-2">
               <span

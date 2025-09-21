@@ -1,6 +1,7 @@
-import { ReactNode } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ReactNode } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 
 export type MetricCardProps = {
   title: string;

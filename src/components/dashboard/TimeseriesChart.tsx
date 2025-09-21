@@ -1,4 +1,5 @@
-import { memo } from "react";
+
+import { memo, useMemo } from "react";
 import {
   CartesianGrid,
 
@@ -9,6 +10,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+import type { Formatter } from "recharts/types/component/DefaultTooltipContent";
+
 import type { ChartPoint, LogRecord } from "@/utils/stats";
 
 export type TimeseriesChartProps = {
@@ -38,6 +42,36 @@ const TimeseriesChartComponent = ({
   valueFormatter = defaultValueFormatter,
   tooltipFormatter,
 }: TimeseriesChartProps) => {
+
+  const tooltipValueFormatter = useMemo<Formatter<number, string>>(() => {
+    return (value, __, item) => {
+      const meta = item?.payload?.meta as unknown;
+      if (typeof value !== "number" || Number.isNaN(value)) {
+        return ["", ""];
+      }
+
+      if (tooltipFormatter) {
+        return [tooltipFormatter(meta, value), ""];
+      }
+
+      if (isLogRecord(meta)) {
+        return [
+          `${label}: ${valueFormatter(value)}` +
+            `\nHTTP: ${meta.http_status ?? "—"}` +
+            `\nTraffic: ${meta.traffic_light}` +
+            `\nLatency: ${meta.latency_ms ?? "—"} мс` +
+            `\nPing: ${meta.ping_ms ?? "—"} мс` +
+            `\nSSL: ${meta.ssl_days_left ?? "—"} дн.` +
+            `\nRedirects: ${meta.redirects ?? "—"}` +
+            `\nDNS: ${meta.dns_resolved ? "ok" : "fail"}`,
+          "",
+        ];
+      }
+
+      return [`${label}: ${valueFormatter(value)}`, ""];
+    };
+  }, [label, tooltipFormatter, valueFormatter]);
+
   return (
     <div className="flex h-full flex-col gap-3 rounded-2xl border border-slate-200/60 bg-white/80 p-4 shadow-sm backdrop-blur">
       <h3 className="text-sm font-semibold text-slate-600">{label}</h3>
@@ -58,28 +92,9 @@ const TimeseriesChartComponent = ({
             <Tooltip
               contentStyle={{ backgroundColor: "rgba(15, 23, 42, 0.9)", borderRadius: 12, border: "none" }}
               labelFormatter={formatTimestamp}
-              formatter={(value?: number, __?: string, item?) => {
-                const meta = item?.payload?.meta as unknown;
-                if (typeof value !== "number") return ["", ""];
-                if (tooltipFormatter) {
-                  return [tooltipFormatter(meta, value), ""];
-                }
-                if (isLogRecord(meta)) {
-                  return [
-                    `${label}: ${valueFormatter(value)}` +
-                      `\nHTTP: ${meta.http_status ?? "—"}` +
-                      `\nTraffic: ${meta.traffic_light}` +
-                      `\nLatency: ${meta.latency_ms ?? "—"} мс` +
-                      `\nPing: ${meta.ping_ms ?? "—"} мс` +
-                      `\nSSL: ${meta.ssl_days_left ?? "—"} дн.` +
-                      `\nRedirects: ${meta.redirects ?? "—"}` +
-                      `\nDNS: ${meta.dns_resolved ? "ok" : "fail"}`,
-                    "",
-                  ];
-                }
-                return [`${label}: ${valueFormatter(value)}`, ""];
 
-              }}
+              formatter={tooltipValueFormatter}
+
             />
             <Line
               type="monotone"
