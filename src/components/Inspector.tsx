@@ -1,9 +1,16 @@
-import { useEffect, useMemo, useState, type ChangeEventHandler } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEventHandler } from "react";
 import clsx from "clsx";
 import { useShallow } from "zustand/react/shallow";
 
 import { useFlowStore } from "../state/store";
-import type { BlockVariant, NodeStatus } from "../flow/nodes/types";
+import {
+  DEFAULT_PING_INTERVAL,
+  MAX_PING_INTERVAL,
+  MIN_PING_INTERVAL,
+  normalizePingInterval,
+  type BlockVariant,
+  type NodeStatus,
+} from "../flow/nodes/types";
 
 const statusOptions: { value: NodeStatus; label: string; className: string }[] = [
   { value: "idle", label: "Ожидание", className: "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-600" },
@@ -19,13 +26,17 @@ const typeLabels: Record<BlockVariant, string> = {
 };
 
 export default function Inspector() {
-  const { selectedNodeId, nodes, updateNodeData } = useFlowStore(
-    useShallow((state) => ({
-      selectedNodeId: state.selectedNodeId,
-      nodes: state.nodes,
-      updateNodeData: state.updateNodeData,
-    }))
-  );
+  const { selectedNodeId, nodes, updateNodeData, deleteSiteNode, removeNode, setSelectedNode } =
+    useFlowStore(
+      useShallow((state) => ({
+        selectedNodeId: state.selectedNodeId,
+        nodes: state.nodes,
+        updateNodeData: state.updateNodeData,
+        deleteSiteNode: state.deleteSiteNode,
+        removeNode: state.removeNode,
+        setSelectedNode: state.setSelectedNode,
+      }))
+    );
 
   const node = useMemo(
     () => nodes.find((candidate) => candidate.id === selectedNodeId),
@@ -36,7 +47,10 @@ export default function Inspector() {
     title: "",
     description: "",
     status: "idle" as NodeStatus,
+    ping_interval: String(DEFAULT_PING_INTERVAL),
   });
+
+  const firstFieldRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!node) return;
@@ -44,8 +58,17 @@ export default function Inspector() {
       title: node.data.title ?? "",
       description: node.data.description ?? "",
       status: node.data.status ?? "idle",
+      ping_interval: String(node.data.ping_interval ?? DEFAULT_PING_INTERVAL),
     });
   }, [node]);
+
+  useEffect(() => {
+    if (!selectedNodeId) return;
+    requestAnimationFrame(() => {
+      firstFieldRef.current?.focus();
+      firstFieldRef.current?.select();
+    });
+  }, [selectedNodeId]);
 
   const handleChange = (
     field: "title" | "description"
@@ -65,6 +88,61 @@ export default function Inspector() {
     if (node && node.data.status !== status) {
       updateNodeData(node.id, { status });
     }
+  };
+
+  const handlePingIntervalChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+    const raw = event.target.value;
+    setForm((prev) => ({ ...prev, ping_interval: raw }));
+
+    if (!node) return;
+    if (raw.trim() === "") return;
+
+    const normalized = normalizePingInterval(raw);
+    if (!normalized) return;
+
+    if (node.data.ping_interval !== normalized) {
+      updateNodeData(node.id, { ping_interval: normalized });
+    }
+  };
+
+  const handlePingIntervalBlur = () => {
+    if (!node) return;
+
+    const fallback = node.data.ping_interval ?? DEFAULT_PING_INTERVAL;
+    const raw = form.ping_interval.trim();
+
+    if (raw === "") {
+      setForm((prev) => ({ ...prev, ping_interval: String(fallback) }));
+      return;
+    }
+
+    const normalized = normalizePingInterval(raw);
+    if (!normalized) {
+      setForm((prev) => ({ ...prev, ping_interval: String(fallback) }));
+      return;
+    }
+
+    if (String(normalized) !== form.ping_interval) {
+      setForm((prev) => ({ ...prev, ping_interval: String(normalized) }));
+    }
+
+    if (node.data.ping_interval !== normalized) {
+      updateNodeData(node.id, { ping_interval: normalized });
+    }
+  };
+
+  const handleDeleteWebsite = () => {
+    if (!node || node.type !== "website") return;
+
+    if (node.id.startsWith("temp-")) {
+      removeNode(node.id);
+      setSelectedNode(undefined);
+      return;
+    }
+
+    void deleteSiteNode(node.id, Number(node.id)).finally(() => {
+      setSelectedNode(undefined);
+    });
   };
 
   if (!node) {
@@ -91,26 +169,73 @@ export default function Inspector() {
       </div>
 
       <div className="mt-5 space-y-5">
-        {/* Название */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Название</label>
-          <input
-            value={form.title}
-            onChange={handleChange("title")}
-            className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          />
-        </div>
+        {node.type === "website" ? (
+          <>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Название</label>
+              <input
+                ref={firstFieldRef}
+                value={form.title}
+                onChange={handleChange("title")}
+                placeholder="Например, Главная страница"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
 
-        {/* Описание */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Описание</label>
-          <textarea
-            value={form.description}
-            onChange={handleChange("description")}
-            rows={3}
-            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
-          />
-        </div>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">URL</label>
+              <input
+                value={form.description}
+                onChange={handleChange("description")}
+                placeholder="https://example.com"
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Интервал опроса (сек)</label>
+              <input
+                type="number"
+                min={MIN_PING_INTERVAL}
+                max={MAX_PING_INTERVAL}
+                value={form.ping_interval}
+                onChange={handlePingIntervalChange}
+                onBlur={handlePingIntervalBlur}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+
+            <button
+              type="button"
+              className="w-full rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 focus:outline-none focus:ring-2 focus:ring-rose-200"
+              onClick={handleDeleteWebsite}
+            >
+              🗑 Удалить блок
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Название</label>
+              <input
+                ref={firstFieldRef}
+                value={form.title}
+                onChange={handleChange("title")}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Описание</label>
+              <textarea
+                value={form.description}
+                onChange={handleChange("description")}
+                rows={3}
+                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
+              />
+            </div>
+          </>
+        )}
 
         {/* Статус */}
         <div className="space-y-2">
@@ -132,65 +257,6 @@ export default function Inspector() {
             ))}
           </div>
         </div>
-
-        {/* URL для website */}
-        {node.type === "website" && (
-          <>
-            {/* URL */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase text-slate-400">URL сайта</label>
-              <input
-                value={form.description}
-                onChange={handleChange("description")}
-                className="w-full rounded-xl border px-3 py-2 text-sm text-slate-700"
-              />
-            </div>
-
-            {/* Интервал */}
-            <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase text-slate-400">Интервал (сек)</label>
-              <input
-                type="number"
-                min={5}
-                max={3600}
-                value={node.data.ping_interval ?? 30}
-                onChange={(e) => updateNodeData(node.id, { ping_interval: Number(e.target.value) })}
-                className="w-full rounded-xl border px-3 py-2 text-sm text-slate-700"
-              />
-            </div>
-
-            {/* Кнопки */}
-            <div className="flex gap-2 pt-4">
-              <button
-                className="flex-1 rounded-xl bg-sky-600 px-4 py-2 text-white"
-                onClick={async () => {
-                  const saved = await useFlowStore.getState().saveSite(node);
-                  if (saved && saved.id) {
-                    useFlowStore.setState({ selectedNodeId: String(saved.id) });
-                  }
-                }}
-              >
-                💾 Сохранить
-              </button>
-              <button
-                className="flex-1 rounded-xl bg-rose-600 px-4 py-2 text-white"
-                onClick={() => {
-                  if (node.id.startsWith("temp-")) {
-                    // удалить только локально
-                    useFlowStore.setState((state) => ({
-                      nodes: state.nodes.filter((n) => n.id !== node.id),
-                    }));
-                  } else {
-                    // удалить и на сервере, и локально
-                    useFlowStore.getState().deleteSiteNode(node.id, Number(node.id));
-                  }
-                }}
-              >
-                🗑 Удалить
-              </button>
-            </div>
-          </>
-        )}
 
         {/* Метаданные read-only */}
         {node.data.metadata && node.data.metadata.length > 0 && (

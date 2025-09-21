@@ -66,7 +66,7 @@ function CanvasInner() {
     setNodes,
     setEdges,
     setSelectedNode,
-    syncWebsiteNode,
+    createWebsiteNode,
   } = useFlowStore(
     useShallow((state) => ({
       nodes: state.nodes,
@@ -74,7 +74,7 @@ function CanvasInner() {
       setNodes: state.setNodes,
       setEdges: state.setEdges,
       setSelectedNode: state.setSelectedNode,
-      syncWebsiteNode: state.syncWebsiteNode,
+      createWebsiteNode: state.createWebsiteNode,
     }))
   );
 
@@ -141,8 +141,13 @@ function CanvasInner() {
         y: event.clientY,
       });
 
+      if (template.type === "website") {
+        void createWebsiteNode(position, template.data);
+        return;
+      }
+
       const newNode: FlowNode = {
-        id: `temp-${nanoid()}`, // 🔹 временный id (будет заменён на id из БД при saveSite)
+        id: `temp-${nanoid()}`,
         type: template.type,
         position,
         data: { ...template.data },
@@ -150,13 +155,8 @@ function CanvasInner() {
 
       setNodes((nds) => nds.concat(newNode));
       setSelectedNode(newNode.id);
-
-      // 🔹 Если узел — сайт, сразу синхронизируем с БД
-      if (newNode.type === "website") {
-        syncWebsiteNode(newNode);
-      }
     },
-    [reactFlow, setNodes, setSelectedNode, syncWebsiteNode]
+    [createWebsiteNode, reactFlow, setNodes, setSelectedNode]
   );
 
   const backgroundGap = useMemo(() => ({ x: 40, y: 40 }), []);
