@@ -73,60 +73,32 @@ const HANDLE_OFFSET = 8;
 function Port({ position, type }: { position: Position; type: "source" | "target" }) {
   const baseStyle: CSSProperties = {
     position: "absolute",
-    ...(position === Position.Top && {
-      top: 0,
-      left: "50%",
-    }),
-    ...(position === Position.Bottom && {
-      bottom: 0,
-      left: "50%",
-    }),
-    ...(position === Position.Left && {
-      left: 0,
-      top: "50%",
-    }),
-    ...(position === Position.Right && {
-      right: 0,
-      top: "50%",
-    }),
+    ...(position === Position.Top && { top: 0, left: "50%" }),
+    ...(position === Position.Bottom && { bottom: 0, left: "50%" }),
+    ...(position === Position.Left && { left: 0, top: "50%" }),
+    ...(position === Position.Right && { right: 0, top: "50%" }),
   };
 
   const transforms: string[] = [];
 
   if (position === Position.Top) {
     transforms.push("translate(-50%, -50%)");
-    transforms.push(
-      type === "source"
-        ? `translateX(${HANDLE_OFFSET}px)`
-        : `translateX(-${HANDLE_OFFSET}px)`
-    );
+    transforms.push(type === "source" ? `translateX(${HANDLE_OFFSET}px)` : `translateX(-${HANDLE_OFFSET}px)`);
   }
 
   if (position === Position.Bottom) {
     transforms.push("translate(-50%, 50%)");
-    transforms.push(
-      type === "source"
-        ? `translateX(${HANDLE_OFFSET}px)`
-        : `translateX(-${HANDLE_OFFSET}px)`
-    );
+    transforms.push(type === "source" ? `translateX(${HANDLE_OFFSET}px)` : `translateX(-${HANDLE_OFFSET}px)`);
   }
 
   if (position === Position.Left) {
     transforms.push("translate(-50%, -50%)");
-    transforms.push(
-      type === "source"
-        ? `translateY(${HANDLE_OFFSET}px)`
-        : `translateY(-${HANDLE_OFFSET}px)`
-    );
+    transforms.push(type === "source" ? `translateY(${HANDLE_OFFSET}px)` : `translateY(-${HANDLE_OFFSET}px)`);
   }
 
   if (position === Position.Right) {
     transforms.push("translate(50%, -50%)");
-    transforms.push(
-      type === "source"
-        ? `translateY(${HANDLE_OFFSET}px)`
-        : `translateY(-${HANDLE_OFFSET}px)`
-    );
+    transforms.push(type === "source" ? `translateY(${HANDLE_OFFSET}px)` : `translateY(-${HANDLE_OFFSET}px)`);
   }
 
   baseStyle.transform = transforms.join(" ");
@@ -149,8 +121,8 @@ interface BaseBlockProps extends NodeProps<BaseNodeData> {
 
 export default function BaseBlock({ variant, data, selected }: BaseBlockProps) {
   const config = variantStyles[variant];
-  const status = data.status ?? "idle";
-  const statusConfig = statusStyles[status];
+  const status: NodeStatus = (data?.status as NodeStatus) ?? "idle";
+  const statusConfig = statusStyles[status] ?? statusStyles.idle;
 
   return (
     <div
@@ -166,6 +138,7 @@ export default function BaseBlock({ variant, data, selected }: BaseBlockProps) {
     >
       <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/0" />
 
+      {/* Header */}
       <div className="relative flex items-center gap-3 px-5 pt-5">
         <div
           className={clsx(
@@ -173,16 +146,14 @@ export default function BaseBlock({ variant, data, selected }: BaseBlockProps) {
             config.accent
           )}
         >
-          {data.emoji}
+          {data?.emoji ?? "❓"}
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-slate-800">
-            {data.title}
+            {data?.title ?? "Без имени"}
           </div>
-          {data.description && (
-            <div className="truncate text-xs text-slate-500">
-              {data.description}
-            </div>
+          {data?.description && (
+            <div className="truncate text-xs text-slate-500">{data.description}</div>
           )}
         </div>
         <div
@@ -196,12 +167,13 @@ export default function BaseBlock({ variant, data, selected }: BaseBlockProps) {
         </div>
       </div>
 
-      {data.metadata && data.metadata.length > 0 && (
+      {/* Metadata */}
+      {Array.isArray(data?.metadata) && data.metadata.length > 0 && (
         <div className="relative mt-4 px-5">
           <dl className="grid grid-cols-2 gap-3 text-[11px] text-slate-600">
-            {data.metadata.map((item) => (
+            {data.metadata.map((item, i) => (
               <div
-                key={`${item.label}-${item.value}`}
+                key={`${item.label}-${item.value}-${i}`}
                 className="flex flex-col gap-1 rounded-xl bg-slate-50/70 p-2"
               >
                 <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -216,6 +188,7 @@ export default function BaseBlock({ variant, data, selected }: BaseBlockProps) {
 
       <div className="relative flex-1" />
 
+      {/* Ports */}
       <Port type="target" position={Position.Top} />
       <Port type="source" position={Position.Top} />
       <Port type="target" position={Position.Bottom} />

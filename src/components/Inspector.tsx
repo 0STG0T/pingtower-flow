@@ -5,18 +5,6 @@ import { useShallow } from "zustand/react/shallow";
 import { useFlowStore } from "../state/store";
 import type { BlockVariant, NodeStatus } from "../flow/nodes/types";
 
-// 👇 простой API-клиент
-async function createSite(url: string, name: string) {
-  const res = await fetch("http://localhost:8000/sites", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, name }),
-  });
-
-  if (!res.ok) throw new Error("Ошибка при создании сайта");
-  return res.json() as Promise<{ id: number; url: string; name: string }>;
-}
-
 const statusOptions: { value: NodeStatus; label: string; className: string }[] = [
   { value: "idle", label: "Ожидание", className: "border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-slate-600" },
   { value: "running", label: "Выполняется", className: "border-amber-200 bg-amber-50 text-amber-600 hover:border-amber-300 hover:text-amber-700" },
@@ -147,32 +135,61 @@ export default function Inspector() {
 
         {/* URL для website */}
         {node.type === "website" && (
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">URL сайта</label>
-            <input
-              defaultValue={node.data.metadata.find((m) => m.label === "URL")?.value ?? ""}
-              onBlur={async (e) => {
-                const url = e.target.value.trim();
-                if (!url) return;
+          <>
+            {/* URL */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase text-slate-400">URL сайта</label>
+              <input
+                value={form.description}
+                onChange={handleChange("description")}
+                className="w-full rounded-xl border px-3 py-2 text-sm text-slate-700"
+              />
+            </div>
 
-                // обновляем локальные метаданные
-                updateNodeData(node.id, {
-                  metadata: [
-                    ...node.data.metadata.filter((m) => m.label !== "URL"),
-                    { label: "URL", value: url },
-                  ],
-                });
+            {/* Интервал */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold uppercase text-slate-400">Интервал (сек)</label>
+              <input
+                type="number"
+                min={5}
+                max={3600}
+                value={node.data.ping_interval ?? 30}
+                onChange={(e) => updateNodeData(node.id, { ping_interval: Number(e.target.value) })}
+                className="w-full rounded-xl border px-3 py-2 text-sm text-slate-700"
+              />
+            </div>
 
-                try {
-                  const site = await createSite(url, new URL(url).hostname);
-                  updateNodeData(node.id, { siteId: site.id });
-                } catch (err) {
-                  console.error("Не удалось сохранить сайт", err);
-                }
-              }}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm focus:border-sky-300 focus:outline-none focus:ring-2 focus:ring-sky-200"
-            />
-          </div>
+            {/* Кнопки */}
+            <div className="flex gap-2 pt-4">
+              <button
+                className="flex-1 rounded-xl bg-sky-600 px-4 py-2 text-white"
+                onClick={async () => {
+                  const saved = await useFlowStore.getState().saveSite(node);
+                  if (saved && saved.id) {
+                    useFlowStore.setState({ selectedNodeId: String(saved.id) });
+                  }
+                }}
+              >
+                💾 Сохранить
+              </button>
+              <button
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2 text-white"
+                onClick={() => {
+                  if (node.id.startsWith("temp-")) {
+                    // удалить только локально
+                    useFlowStore.setState((state) => ({
+                      nodes: state.nodes.filter((n) => n.id !== node.id),
+                    }));
+                  } else {
+                    // удалить и на сервере, и локально
+                    useFlowStore.getState().deleteSiteNode(node.id, Number(node.id));
+                  }
+                }}
+              >
+                🗑 Удалить
+              </button>
+            </div>
+          </>
         )}
 
         {/* Метаданные read-only */}

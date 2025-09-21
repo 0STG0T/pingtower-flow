@@ -1,9 +1,18 @@
+// FlowWorkspace.tsx
+import { useEffect } from "react";
+import { useFlowStore } from "../state/store";
 import FlowCanvas from "../flow/FlowCanvas";
 import Inspector from "../components/Inspector";
 import NodeLibrary from "../components/NodeLibrary";
 import Toolbar from "../components/Toolbar";
 
 export default function FlowWorkspace() {
+  const initFromDb = useFlowStore((s) => s.initFromDb);
+
+  useEffect(() => {
+    initFromDb(); // 🔹 при входе сразу подтянем сайты
+  }, [initFromDb]);
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Toolbar />

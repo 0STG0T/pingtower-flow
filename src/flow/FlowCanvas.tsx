@@ -6,14 +6,12 @@ import ReactFlow, {
   Controls,
   Panel,
   ReactFlowProvider,
-
   applyEdgeChanges,
   applyNodeChanges,
   type Connection,
   type ConnectionLineType,
   type EdgeChange,
   type Edge,
-
   type NodeChange,
   MarkerType,
   useReactFlow,
@@ -48,7 +46,6 @@ const defaultEdgeOptions = {
     width: 20,
     height: 20,
   },
-
   style: { stroke: EDGE_COLOR, strokeWidth: 2 },
 };
 
@@ -62,16 +59,23 @@ function CanvasInner() {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const reactFlow = useReactFlow();
 
-  const { nodes, edges, setNodes, setEdges, setSelectedNode } = useFlowStore(
+  // 🔹 Один вызов useFlowStore со всеми нужными данными
+  const {
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    setSelectedNode,
+    syncWebsiteNode,
+  } = useFlowStore(
     useShallow((state) => ({
-
       nodes: state.nodes,
       edges: state.edges,
       setNodes: state.setNodes,
       setEdges: state.setEdges,
       setSelectedNode: state.setSelectedNode,
+      syncWebsiteNode: state.syncWebsiteNode,
     }))
-
   );
 
   const onNodesChange = useCallback(
@@ -103,10 +107,7 @@ function CanvasInner() {
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (!isValidConnection(connection)) {
-        return;
-      }
-
+      if (!isValidConnection(connection)) return;
       setEdges((eds) => eds.concat(buildEdge(connection)));
     },
     [buildEdge, isValidConnection, setEdges]
@@ -133,17 +134,15 @@ function CanvasInner() {
 
       const templateId = event.dataTransfer.getData("application/reactflow/template");
       const template = NODE_LIBRARY.find((item) => item.templateId === templateId);
-      const bounds = wrapperRef.current?.getBoundingClientRect();
+      if (!template) return;
 
-      if (!template || !bounds) return;
-
-      const position = reactFlow.project({
-        x: event.clientX - bounds.left,
-        y: event.clientY - bounds.top,
+      const position = reactFlow.screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
       });
 
       const newNode: FlowNode = {
-        id: nanoid(),
+        id: `temp-${nanoid()}`, // 🔹 временный id (будет заменён на id из БД при saveSite)
         type: template.type,
         position,
         data: { ...template.data },
@@ -151,8 +150,13 @@ function CanvasInner() {
 
       setNodes((nds) => nds.concat(newNode));
       setSelectedNode(newNode.id);
+
+      // 🔹 Если узел — сайт, сразу синхронизируем с БД
+      if (newNode.type === "website") {
+        syncWebsiteNode(newNode);
+      }
     },
-    [reactFlow, setNodes, setSelectedNode]
+    [reactFlow, setNodes, setSelectedNode, syncWebsiteNode]
   );
 
   const backgroundGap = useMemo(() => ({ x: 40, y: 40 }), []);
@@ -171,7 +175,6 @@ function CanvasInner() {
         onDrop={onDrop}
         onDragOver={onDragOver}
         isValidConnection={isValidConnection}
-
         defaultEdgeOptions={defaultEdgeOptions}
         connectionLineType={smoothstepLineType}
         connectionLineComponent={SmartConnectionLine}
@@ -197,8 +200,7 @@ function CanvasInner() {
           position="top-right"
           className="rounded-2xl border border-slate-200 bg-white/80 px-4 py-2 text-xs text-slate-500 shadow-sm backdrop-blur"
         >
-          <span className="font-semibold text-slate-700">Подсказка:</span> перетащите блок из
-          библиотеки слева
+          <span className="font-semibold text-slate-700">Подсказка:</span> перетащите блок из библиотеки слева
         </Panel>
       </ReactFlow>
     </div>

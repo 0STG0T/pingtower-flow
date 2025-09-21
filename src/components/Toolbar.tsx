@@ -1,61 +1,40 @@
 import { useEffect, useState, type KeyboardEventHandler } from "react";
 import clsx from "clsx";
 
-import { useShallow } from "zustand/react/shallow";
-
 import { useFlowStore } from "../state/store";
 import { formatRelativeTime } from "../utils/date";
 
 export default function Toolbar() {
-  const {
-    flowName,
-    setFlowName,
-    nodes,
-    edges,
-    runFlow,
-    stopFlow,
-    saveFlow,
-    isRunning,
-    isDirty,
-    lastRunAt,
-    lastSavedAt,
-
-  } = useFlowStore(
-    useShallow((state) => ({
-      flowName: state.flowName,
-      setFlowName: state.setFlowName,
-      nodes: state.nodes,
-      edges: state.edges,
-      runFlow: state.runFlow,
-      stopFlow: state.stopFlow,
-      saveFlow: state.saveFlow,
-      isRunning: state.isRunning,
-      isDirty: state.isDirty,
-      lastRunAt: state.lastRunAt,
-      lastSavedAt: state.lastSavedAt,
-    }))
-  );
-
+  // 🎯 получаем поля по отдельности → нет новых объектов, нет бесконечного цикла
+  const flowName = useFlowStore((s) => s.flowName);
+  const setFlowName = useFlowStore((s) => s.setFlowName);
+  const nodes = useFlowStore((s) => s.nodes);
+  const edges = useFlowStore((s) => s.edges);
+  const runFlow = useFlowStore((s) => s.runFlow);
+  const stopFlow = useFlowStore((s) => s.stopFlow);
+  const saveFlow = useFlowStore((s) => s.saveFlow);
+  const isRunning = useFlowStore((s) => s.isRunning);
+  const isDirty = useFlowStore((s) => s.isDirty);
+  const lastRunAt = useFlowStore((s) => s.lastRunAt);
+  const lastSavedAt = useFlowStore((s) => s.lastSavedAt);
 
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState(flowName);
 
+  // обновляем draftName только если не редактируем
   useEffect(() => {
-    setDraftName((previous: string) => (previous === flowName ? previous : flowName));
-  }, [flowName]);
+    if (!isEditingName) {
+      setDraftName(flowName);
+    }
+  }, [flowName, isEditingName]);
 
   const handleSubmitName = () => {
     const normalized = draftName.trim();
     const nextName = normalized === "" ? "Новый сценарий" : normalized;
 
-    if (nextName === flowName) {
-      setDraftName(nextName);
-      setIsEditingName(false);
-      return;
+    if (nextName !== flowName) {
+      setFlowName(nextName);
     }
-
-    setDraftName(nextName);
-    setFlowName(nextName);
 
     setIsEditingName(false);
   };
@@ -115,7 +94,8 @@ export default function Toolbar() {
             <span>Сохранено {formatRelativeTime(lastSavedAt)}</span>
             <span className="hidden md:inline">•</span>
             <span className="hidden md:inline">
-              Последний запуск {lastRunAt ? formatRelativeTime(lastRunAt) : "не запускался"}
+              Последний запуск{" "}
+              {lastRunAt ? formatRelativeTime(lastRunAt) : "не запускался"}
             </span>
           </div>
         </div>
@@ -123,9 +103,9 @@ export default function Toolbar() {
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="hidden items-center gap-3 text-xs text-slate-500 xl:flex">
-          <span>{nodes.length} узлов</span>
+          <span>{nodes?.length ?? 0} узлов</span>
           <span className="text-slate-300">•</span>
-          <span>{edges.length} связей</span>
+          <span>{edges?.length ?? 0} связей</span>
           {isDirty && (
             <span className="flex items-center gap-1 text-amber-500">
               <span className="h-2 w-2 animate-ping rounded-full bg-amber-400" />

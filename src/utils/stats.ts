@@ -87,9 +87,12 @@ export function aggregateTrafficLight(logs: LogRecord[]): TrafficLightAggregate 
     { green: 0, orange: 0, red: 0 },
   );
 }
-untIncidents(logs: LogRecord[]): number {
-  return logs.filter((log) => log.traffic_light === "orange" || log.traffic_light === "red").length;
+export function countIncidents(logs: LogRecord[]): number {
+  return logs.filter(
+    (log) => log.traffic_light === "orange" || log.traffic_light === "red"
+  ).length;
 }
+
 
 export function getSparklineSeries(
   logs: LogRecord[],

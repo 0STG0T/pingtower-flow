@@ -1,157 +1,160 @@
 import { create } from "zustand";
-import { MarkerType, type Edge } from "reactflow";
+import { fetchSites, createSite, updateSite, deleteSite } from "../lib/api";
+import type { FlowNode, BaseNodeData } from "../flow/nodes/types";
+import type { Edge } from "reactflow";
 
-import type {
-  BaseNodeData,
-  FlowNode,
-  NodeStatus,
-} from "../flow/nodes/types";
+export type NodeStatus = "idle" | "running" | "success" | "error";
 
 type FlowStore = {
   flowName: string;
+  setFlowName: (name: string) => void;
+
   nodes: FlowNode[];
   edges: Edge[];
+  setNodes: (updater: FlowNode[] | ((nodes: FlowNode[]) => FlowNode[])) => void;
+  setEdges: (updater: Edge[] | ((edges: Edge[]) => Edge[])) => void;
+
   selectedNodeId?: string;
-  isRunning: boolean;
-  isDirty: boolean;
-  lastRunAt?: number;
-  lastSavedAt?: number;
-  lastChangeAt?: number;
-  setNodes: (updater: (nodes: FlowNode[]) => FlowNode[]) => void;
-  setEdges: (updater: (edges: Edge[]) => Edge[]) => void;
-  addNode: (node: FlowNode) => void;
-  updateNodeData: (id: string, data: Partial<BaseNodeData>) => void;
   setSelectedNode: (id?: string) => void;
-  setFlowName: (name: string) => void;
-  saveFlow: () => void;
+
+  initFromDb: () => Promise<void>;
+  saveSite: (node: FlowNode) => Promise<{ id: number; url: string; name: string; ping_interval: number } | undefined>;
+  deleteSiteNode: (nodeId: string, siteId: number) => Promise<void>;
+  syncWebsiteNode: (node: FlowNode) => Promise<{ id: number; url: string; name: string; ping_interval: number } | undefined>;
+  updateNodeData: (id: string, data: Partial<BaseNodeData>) => void;
+
   runFlow: () => void;
   stopFlow: () => void;
+  saveFlow: () => void;
+
+  isRunning: boolean;
+  isDirty: boolean;
+  lastRunAt?: Date;
+  lastSavedAt?: Date;
 };
 
-const edgeColor = "#38bdf8";
-
-const statusOrder: NodeStatus[] = ["success", "running", "success"];
-
 export const useFlowStore = create<FlowStore>((set, get) => ({
-  flowName: "PingTower Автоматизация",
+  flowName: "Новый сценарий",
+  setFlowName: (name) => set({ flowName: name, isDirty: true }),
+
   nodes: [],
   edges: [],
-  selectedNodeId: undefined,
-  isRunning: false,
-  isDirty: false,
-  lastRunAt: undefined,
-  lastSavedAt: Date.now(),
-  lastChangeAt: Date.now(),
-
   setNodes: (updater) =>
     set((state) => ({
-      nodes: updater(state.nodes),
+      nodes: typeof updater === "function" ? updater(state.nodes) : updater,
       isDirty: true,
-      lastChangeAt: Date.now(),
     })),
   setEdges: (updater) =>
     set((state) => ({
-      edges: updater(state.edges),
+      edges: typeof updater === "function" ? updater(state.edges) : updater,
       isDirty: true,
-      lastChangeAt: Date.now(),
     })),
-  addNode: (node) =>
-    set((state) => ({
-      nodes: [...state.nodes, node],
-      isDirty: true,
-      lastChangeAt: Date.now(),
-    })),
-  updateNodeData: (id, data) =>
-    set((state) => {
-      let didChange = false;
 
-      const nodes = state.nodes.map((node) => {
-        if (node.id !== id) return node;
-
-        const nextData = { ...node.data, ...data };
-
-        const titleChanged =
-          "title" in data &&
-          typeof data.title === "string" &&
-          data.title !== node.data.title;
-        const descriptionChanged =
-          "description" in data && data.description !== node.data.description;
-        const statusChanged =
-          "status" in data && data.status !== node.data.status;
-        const otherKeysChanged = Object.keys(data).some(
-          (key) =>
-            key !== "title" && key !== "description" && key !== "status"
-        );
-
-        if (!titleChanged && !descriptionChanged && !statusChanged && !otherKeysChanged) {
-          return node;
-        }
-
-        didChange = true;
-        return { ...node, data: nextData };
-      });
-
-      if (!didChange) return state;
-
-      return {
-        nodes,
-        isDirty: true,
-        lastChangeAt: Date.now(),
-      };
-    }),
+  selectedNodeId: undefined,
   setSelectedNode: (id) => set({ selectedNodeId: id }),
-  setFlowName: (name) =>
-    set((state) => {
-      const normalized = name.trim();
-      const nextName = normalized === "" ? "Новый сценарий" : normalized;
 
-      if (nextName === state.flowName) return state;
+  // 📥 загрузка из БД
+  initFromDb: async () => {
+    try {
+      const sites = await fetchSites();
+      const nodes: FlowNode[] = sites.map((site) => ({
+        id: String(site.id),
+        type: "website",
+        position: { x: Math.random() * 400, y: Math.random() * 400 },
+        data: {
+          title: site.name,
+          description: site.url,
+          emoji: "🌐",
+          status: "idle" as NodeStatus,
+          ping_interval: site.ping_interval ?? 30,
+          metadata: [
+            { label: "URL", value: site.url },
+            { label: "Имя", value: site.name },
+            { label: "Интервал", value: site.ping_interval?.toString() ?? "30" },
+          ],
+        },
+      }));
+      set({ nodes, isDirty: false });
+    } catch (err) {
+      console.error("[FlowStore] Ошибка загрузки сайтов:", err);
+    }
+  },
 
-      return {
-        flowName: nextName,
-        isDirty: true,
-        lastChangeAt: Date.now(),
-      };
-    }),
-  saveFlow: () =>
-    set((state) => ({
-      lastSavedAt: Date.now(),
-      isDirty: false,
-      lastChangeAt: state.lastChangeAt,
-    })),
-  runFlow: () => {
-    const startedAt = Date.now();
-    set((state) => ({
-      isRunning: true,
-      lastRunAt: startedAt,
-      nodes: state.nodes.map((node) => ({
-        ...node,
-        data: { ...node.data, status: "running" as NodeStatus },
-      })),
-      isDirty: state.isDirty,
-    }));
+  // 💾 сохранить / обновить сайт
+  saveSite: async (node) => {
+    if (node.type !== "website") return;
 
-    setTimeout(() => {
-      const { isRunning } = get();
-      if (!isRunning) return;
+    try {
+      const url = node.data.description || "";
+      const name = node.data.title || "Без имени";
+      const ping_interval = node.data.ping_interval ?? 30;
+
+      const saved = node.id.startsWith("temp-")
+        ? await createSite(url, name, ping_interval)
+        : await updateSite(Number(node.id), { url, name, ping_interval });
 
       set((state) => ({
-        isRunning: false,
-        nodes: state.nodes.map((node, index) => ({
-          ...node,
-          data: { ...node.data, status: statusOrder[index] ?? "success" },
-        })),
-        isDirty: state.isDirty,
+        nodes: state.nodes.map((n) =>
+          n.id === node.id
+            ? {
+                ...n,
+                id: String(saved.id),
+                data: {
+                  ...n.data,
+                  title: saved.name,
+                  description: saved.url,
+                  ping_interval: saved.ping_interval,
+                },
+              }
+            : n
+        ),
+        isDirty: false,
+        lastSavedAt: new Date(),
       }));
-    }, 1300);
+
+      return saved;
+    } catch (err) {
+      console.error("[FlowStore] Ошибка сохранения сайта:", err);
+    }
   },
-  stopFlow: () =>
+
+  // 🗑 удалить сайт
+  deleteSiteNode: async (nodeId, siteId) => {
+    try {
+      await deleteSite(Number(siteId));
+    } catch (err) {
+      console.warn("[FlowStore] Сервер не нашёл сайт, удаляем только локально", { nodeId, siteId });
+    } finally {
+      set((state) => ({
+        nodes: state.nodes.filter((n) => n.id !== nodeId),
+        isDirty: true,
+      }));
+    }
+  },
+
+  // 🔄 синхронизация
+  syncWebsiteNode: async (node) => {
+    if (node.type === "website") {
+      return await get().saveSite(node);
+    }
+  },
+
+  // ✏️ обновить локально
+  updateNodeData: (id, data) =>
     set((state) => ({
-      isRunning: false,
-      nodes: state.nodes.map((node) => ({
-        ...node,
-        data: { ...node.data, status: "idle" as NodeStatus },
-      })),
-      isDirty: state.isDirty,
+      nodes: state.nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, ...data } } : node
+      ),
+      isDirty: true,
     })),
+
+  runFlow: () => set({ isRunning: true, lastRunAt: new Date() }),
+  stopFlow: () => set({ isRunning: false }),
+
+  saveFlow: () => set({ isDirty: false, lastSavedAt: new Date() }),
+
+  isRunning: false,
+  isDirty: false,
+  lastRunAt: undefined,
+  lastSavedAt: undefined,
 }));
